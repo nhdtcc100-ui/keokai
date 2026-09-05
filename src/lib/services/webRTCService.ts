@@ -12,7 +12,7 @@ export class WebRTCService {
     const peerId = `${userId}-${sessionSuffix}`;
 
     this.peer = new Peer(peerId, {
-      debug: 2,
+      debug: 0, // Silence noisy internal logger
       config: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
@@ -41,7 +41,6 @@ export class WebRTCService {
     });
 
     this.peer.on('open', (id) => {
-      console.log('DEBUG: WebRTC Peer Connection Opened with ID:', id);
       // Store the actual peer ID globally
       (window as any).currentPeerId = id;
       
@@ -50,20 +49,39 @@ export class WebRTCService {
         profileService.updateProfile(userId, { 
           current_peer_id: id,
           last_seen_at: new Date().toISOString()
-        }).catch(err => console.error("DEBUG: Failed to sync Peer ID to profile:", err));
+        }).catch(() => {});
       });
     });
 
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 2;
+
     this.peer.on('disconnected', () => {
-      console.log('DEBUG: Peer disconnected, attempting to reconnect...');
-      this.peer?.reconnect();
+      if (reconnectAttempts < maxReconnectAttempts) {
+        reconnectAttempts++;
+        setTimeout(() => {
+          if (this.peer && !this.peer.destroyed) {
+            try { this.peer.reconnect(); } catch {}
+          }
+        }, 10000);
+      }
     });
 
     this.peer.on('error', (err: any) => {
-      console.error('DEBUG: WebRTC Peer Error:', err.type, err);
-      if (err.type === 'unavailable-id') {
-        console.warn("DEBUG: ID taken, this is expected if multiple tabs are open.");
+      // Gracefully handle signaling server network/DNS unreachability
+      if (
+        err.type === 'network' || 
+        err.type === 'server-error' || 
+        err.type === 'socket-error' || 
+        err.type === 'socket-closed'
+      ) {
+        // Signaling server is offline or unreachable on current network
+        return;
       }
+      if (err.type === 'unavailable-id') {
+        return;
+      }
+      console.warn('[WebRTC] Peer warning:', err.type || err.message);
     });
   }
 

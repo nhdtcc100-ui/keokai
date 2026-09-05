@@ -268,15 +268,17 @@ function App() {
   useEffect(() => {
     if (!appUser?.id) return;
     
-    // Initialize WebRTC
-    webRTCServiceRef.current = new WebRTCService(appUser.id);
-    
-    // Listen for incoming PeerJS calls (The media part)
-    webRTCServiceRef.current.onIncomingCall((peerCall) => {
-      console.log("DEBUG: WebRTC Incoming Call Received from PeerJS");
-      // Store the pending peer call to answer it when user clicks Accept
-      window.pendingPeerCall = peerCall;
-    });
+    // Initialize WebRTC safely
+    try {
+      webRTCServiceRef.current = new WebRTCService(appUser.id);
+      
+      // Listen for incoming PeerJS calls (The media part)
+      webRTCServiceRef.current.onIncomingCall((peerCall) => {
+        window.pendingPeerCall = peerCall;
+      });
+    } catch (err) {
+      console.warn('[WebRTC] Initialization bypassed:', err);
+    }
 
     return () => {
       webRTCServiceRef.current?.destroy();

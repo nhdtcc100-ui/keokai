@@ -28,21 +28,7 @@ const FALLBACK: NewsItem[] = [
   { id: 'f5', author: 'Elevate عراق', content: 'زيادة ملحوظة في اعتماد الشركات العراقية على نظام العمل عن بعد.', title: 'فرص العمل عن بُعد في ازدياد مستمر بالعراق', link: '#', pubDate: new Date(Date.now() - 3.6e6 * 10).toISOString(), description: 'زيادة ملحوظة في اعتماد الشركات العراقية على نظام العمل عن بعد.', thumbnail: 'https://images.unsplash.com/photo-1587560699334-cc4ff634909a?w=600&h=300&fit=crop', region: 'iraq', topic: 'مقالات', source: 'Elevate عراق' },
 ];
 
-// High-availability proxies and RSS converters
-const PROXIES = [
-  (url: string) => `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`,
-  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-];
 
-// ── RSS Feeds ────────────────────────────────────────────────────────────────
-const FEEDS: { url: string; region: NewsItem['region']; label: string }[] = [
-  { url: 'https://feeds.bbci.co.uk/arabic/rss.xml', region: 'arab', label: 'BBC عربي' },
-  { url: 'https://feeds.bbci.co.uk/arabic/business/rss.xml', region: 'arab', label: 'BBC اقتصاد' },
-  { url: 'https://www.skynewsarabia.com/rss.xml', region: 'arab', label: 'Sky News عربية' },
-  { url: 'https://aljazeera.net/aljazeerarss/a7c186be-1baa-4bd4-9d80-a2396e2adf12/69599544-2454-46c5-9279-d102e75e533c', region: 'arab', label: 'الجزيرة' },
-];
 
 // Parse RSS XML text → item array
 const parseRSS = (xml: string, source: string, baseRegion: NewsItem['region']): NewsItem[] => {
@@ -480,8 +466,8 @@ export function NewsView({ appUser }: { appUser: any }) {
 
       // Build allowed source labels for strict filtering
       const allowedSources = new Set<string>([
-        ...FEEDS.map(f => f.label),
         ...activeSources.map(s => `@${s.username}`),
+        ...activeSources.map(s => s.username),
       ]);
 
       const allFeedPromises = [
