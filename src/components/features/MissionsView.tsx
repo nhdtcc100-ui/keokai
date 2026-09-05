@@ -33,6 +33,7 @@ interface MissionsViewProps {
   messages: any[];
   onApplyJob: (job: Job) => void;
   setActiveTab?: (tab: string) => void;
+  onPublisherClick?: (user: any) => void;
 }
 
 const EMPTY_JOB_FORM = {
@@ -55,7 +56,7 @@ const EMPTY_COURSE_FORM: CoursePostFormData = {
 type MainTab = 'jobs' | 'courses';
 type JobSubTab = 'discover' | 'my-posts' | 'requests' | 'analytics';
 
-export function MissionsView({ jobs, appUser, allUsers, addToast, messages, onApplyJob, setActiveTab }: MissionsViewProps) {
+export function MissionsView({ jobs, appUser, allUsers, addToast, messages, onApplyJob, setActiveTab, onPublisherClick }: MissionsViewProps) {
   const { refreshData } = useAppContext();
   const isAdmin = isUserAdmin(appUser);
 
@@ -438,7 +439,7 @@ export function MissionsView({ jobs, appUser, allUsers, addToast, messages, onAp
               const isEmployerUser = isJobPoster(appUser);
               const availableSubTabs = isEmployerUser ? [
                 { id: 'discover', label: 'اكتشف الفرص' },
-                { id: 'my-posts', label: `وظائفي المرفوعة (${myPostedJobs.length})` },
+                { id: 'my-posts', label: `وظائفي (${myPostedJobs.length})` },
                 { id: 'requests', label: 'الطلبات الواردة', badge: incomingApplications.filter(a => a.status === 'pending').length },
                 { id: 'analytics', label: 'إحصائيات' }
               ] : [
@@ -530,6 +531,7 @@ export function MissionsView({ jobs, appUser, allUsers, addToast, messages, onAp
                       delay={i * 0.04} 
                       compact={filteredJobs.length >= 3}
                       matchScore={score > 0 ? score : calculateMatchScore(job.requirements || job.description || '')}
+                      onPublisherClick={onPublisherClick}
                     />
                   ))}
                 </div>

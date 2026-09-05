@@ -13,7 +13,7 @@ export const jobService = {
     // ✅ Parameterized query via Supabase SDK — safe from SQL injection
     return supabase
       .from('jobs')
-      .select('id, title, company, location, salary, job_type, image_url, description, requirements, created_at, employer_id, is_active')
+      .select('id, title, company, location, salary, job_type, working_hours, image_url, description, requirements, created_at, employer_id, is_active')
       .order('created_at', { ascending: false })
       .limit(Math.min(limit, 100)); // ✅ Enforce max limit
   },
@@ -52,17 +52,20 @@ export const jobService = {
     }
 
     try {
+      const workingHours = sanitizeInput(data.working_hours || '', 100);
+
       const { data: res, error } = await (supabase.from('jobs') as any).insert([{
         title,
         company,
         description,
-        location:     location || 'عن بُعد',
+        location:      location || 'عن بُعد',
         salary,
-        requirements: requirements || null,
-        job_type:     jobType,
-        image_url:    (data.imageUrl || '').trim() || null,
-        employer_id:  data.employer_id, // From authenticated session
-        is_active:    data.is_active !== undefined ? Boolean(data.is_active) : true,
+        requirements:  requirements || null,
+        job_type:      jobType,
+        working_hours: workingHours || null,
+        image_url:     (data.imageUrl || '').trim() || null,
+        employer_id:   data.employer_id,
+        is_active:     data.is_active !== undefined ? Boolean(data.is_active) : true,
       }]).select();
 
       if (error) {

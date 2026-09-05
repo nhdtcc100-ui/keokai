@@ -111,6 +111,7 @@ interface DetailFeedPageProps {
   onDislike?: (id: string) => void;
   onAddComment?: (id: string, c: string) => void;
   allUsers?: any[];
+  onPublisherClick?: (user: any) => void;
 }
 
 export const DetailFeedPage: React.FC<DetailFeedPageProps> = ({
@@ -125,7 +126,8 @@ export const DetailFeedPage: React.FC<DetailFeedPageProps> = ({
   onLike,
   onDislike,
   onAddComment,
-  allUsers = []
+  allUsers = [],
+  onPublisherClick,
 }) => {
   const { setSelectedProfile, allUsers: contextAllUsers } = useAppContext();
   const allUsersList = allUsers.length > 0 ? allUsers : contextAllUsers;
@@ -359,7 +361,15 @@ export const DetailFeedPage: React.FC<DetailFeedPageProps> = ({
                           
                           <h1 className="text-xl md:text-2xl font-black text-white leading-tight tracking-tight drop-shadow-md">{item.title}</h1>
                           
-                          <div className="flex items-center gap-2.5 mt-2">
+                          <div 
+                            className={`flex items-center gap-2.5 mt-2 ${pubUser && onPublisherClick ? 'cursor-pointer hover:opacity-90' : ''}`}
+                            onClick={() => {
+                              if (pubUser && onPublisherClick) {
+                                onClose();
+                                onPublisherClick(pubUser);
+                              }
+                            }}
+                          >
                             {pubAvatar ? (
                               <img src={pubAvatar} alt="" className="w-7 h-7 rounded-xl object-cover border border-white/30 shadow-md" />
                             ) : (
@@ -368,6 +378,7 @@ export const DetailFeedPage: React.FC<DetailFeedPageProps> = ({
                               </div>
                             )}
                             <p className="text-sm text-white/95 font-black">{item.company}</p>
+                            <span className="text-[10px] font-bold text-white/60">• {timeAgo(item.postedAt)}</span>
                           </div>
                         </div>
                       </div>
@@ -378,9 +389,9 @@ export const DetailFeedPage: React.FC<DetailFeedPageProps> = ({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 px-4 md:px-6 pt-5">
                     {[
                       { icon: <MapPin size={13} className="text-blue-500 dark:text-blue-400" />, label: 'الموقع', value: item.location || 'عن بُعد' },
-                      { icon: <Tag size={13} className="text-indigo-500 dark:text-indigo-400" />, label: 'نوع العمل', value: item.jobType || 'دوام كامل' },
+                      { icon: <Tag size={13} className="text-indigo-500 dark:text-indigo-400" />, label: 'نوع العمل', value: item.jobType || item.job_type || 'دوام كامل' },
                       { icon: <DollarSign size={13} className="text-emerald-500 dark:text-emerald-400" />, label: 'الراتب', value: item.salary || 'غير محدد' },
-                      { icon: <Clock size={13} className="text-amber-500 dark:text-amber-400" />, label: 'تاريخ النشر', value: timeAgo(item.postedAt) },
+                      { icon: <Clock size={13} className="text-amber-500 dark:text-amber-400" />, label: 'ساعات العمل', value: item.working_hours || item.workingHours || 'دوام كامل' },
                     ].map((stat, i) => (
                       <div key={i} className="bg-slate-50 dark:bg-slate-900 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col gap-1 shadow-sm">
                         {stat.icon}

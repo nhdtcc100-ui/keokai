@@ -883,11 +883,13 @@ function App() {
                                 }}
                                 delay={idx * 0.05}
                                 onEditJob={(job) => setEditingFeedJob(job)}
+                                onPublisherClick={(emp) => {
+                                  setSelectedProfile(emp);
+                                  setActiveTab('profile');
+                                }}
                                 onDeleteJob={async (jobId) => {
                                   if (!window.confirm('هل أنت متأكد من حذف هذه الوظيفة؟')) return;
                                   await (supabase as any).from('jobs').delete().eq('id', jobId);
-                                  // optimistic remove from local state
-                                  // jobs are fetched from context, refreshData handles update
                                 }}
                               />
                             </div>
@@ -909,6 +911,10 @@ function App() {
                       addToast={addToast} 
                       messages={messages} 
                       setActiveTab={setActiveTab}
+                      onPublisherClick={(user) => {
+                        setSelectedProfile(user);
+                        setActiveTab('profile');
+                      }}
                       onApplyJob={(job) => {
                         setApplyingJob(job);
                         setIsApplying(false);
@@ -1160,6 +1166,11 @@ function App() {
             onDislike={handleDislike}
             onAddComment={handleAddComment}
             allUsers={allUsers}
+            onPublisherClick={(user) => {
+              setDetailFeed(null);
+              setSelectedProfile(user);
+              setActiveTab('profile');
+            }}
           />
         )}
       </AnimatePresence>

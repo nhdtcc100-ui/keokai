@@ -18,9 +18,10 @@ interface JobCardProps {
   matchScore?: number;
   onEditJob?: (job: Job) => void;
   onDeleteJob?: (jobId: string) => void;
+  onPublisherClick?: (employer: any) => void;
 }
 
-export const JobCard = React.memo(({ job, onClick, delay = 0, compact = false, matchScore = 0, onEditJob, onDeleteJob }: JobCardProps) => {
+export const JobCard = React.memo(({ job, onClick, delay = 0, compact = false, matchScore = 0, onEditJob, onDeleteJob, onPublisherClick }: JobCardProps) => {
   const { allUsers, appUser, addToast, refreshData } = useAppContext();
   
   const employer = React.useMemo(() => allUsers.find(u => u.id === job.employer_id), [allUsers, job.employer_id]);
@@ -159,13 +160,6 @@ export const JobCard = React.memo(({ job, onClick, delay = 0, compact = false, m
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={toggleBookmark}
-            className={`p-1.5 rounded-xl transition-all ${isBookmarked ? 'bg-blue-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-blue-600 border border-transparent dark:border-slate-700'}`}
-            title={isBookmarked ? 'إلغاء الحفظ' : 'حفظ الوظيفة'}
-          >
-            <Bookmark size={13} className={isBookmarked ? 'fill-white' : ''} />
-          </button>
           <div className="hidden md:flex flex-col items-end gap-0.5 mr-1">
             <span className="text-[9px] font-black text-slate-300 dark:text-slate-600">{safeTimeAgo(job.postedAt || (job as any).created_at)}</span>
             <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md ${isActive ? 'bg-emerald-50 text-emerald-500' : 'bg-slate-100 text-slate-400'}`}>
@@ -240,9 +234,17 @@ export const JobCard = React.memo(({ job, onClick, delay = 0, compact = false, m
 
       {/* Content */}
       <div className="px-7 relative flex-1 pb-7">
-        {/* Avatar */}
+        {/* Avatar — clickable to open publisher profile */}
         <div className="relative -mt-12 mb-5 z-10">
-          <div className="w-20 h-20 rounded-[2rem] border-4 border-white dark:border-[#0f172a] bg-white dark:bg-slate-800 shadow-[0_15px_30px_rgba(0,0,0,0.15)] dark:shadow-[0_15px_30px_rgba(0,0,0,0.6)] overflow-hidden group-hover:rotate-[6deg] group-hover:scale-110 group-hover:shadow-[0_20px_40px_rgba(10,102,194,0.4)] transition-all duration-700">
+          <div
+            className={`w-20 h-20 rounded-[2rem] border-4 border-white dark:border-[#0f172a] bg-white dark:bg-slate-800 shadow-[0_15px_30px_rgba(0,0,0,0.15)] dark:shadow-[0_15px_30px_rgba(0,0,0,0.6)] overflow-hidden group-hover:rotate-[6deg] group-hover:scale-110 group-hover:shadow-[0_20px_40px_rgba(10,102,194,0.4)] transition-all duration-700 ${employer ? 'cursor-pointer' : ''}`}
+            onClick={(e) => {
+              if (!employer || !onPublisherClick) return;
+              e.stopPropagation();
+              onPublisherClick(employer);
+            }}
+            title={employer?.name ? `عرض ملف ${employer.name}` : undefined}
+          >
             <img src={avatarUrl} alt={job.company} className="w-full h-full object-cover" />
           </div>
         </div>
@@ -464,17 +466,6 @@ export const JobCard = React.memo(({ job, onClick, delay = 0, compact = false, m
             )}
           </div>
           <div className="flex items-center gap-3">
-            <motion.button
-              whileTap={{ scale: 0.85 }}
-              onClick={toggleBookmark}
-              className={`p-2.5 rounded-2xl transition-all duration-300 ${
-                isBookmarked 
-                  ? 'bg-blue-600 text-white shadow-xl shadow-blue-500/40' 
-                  : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-700 shadow-sm border border-slate-100 dark:border-slate-700'
-              }`}
-            >
-              <Bookmark size={16} className={isBookmarked ? 'fill-white' : ''} />
-            </motion.button>
             <div className={`flex items-center gap-2 text-[11px] font-black transition-all duration-500 group-hover:gap-4 ${isActive ? 'text-[#0a66c2] dark:text-blue-400' : 'text-slate-400'}`}>
               <span className="uppercase tracking-widest">{isActive ? 'تفاصيل العرض' : 'عرض البيانات'}</span>
               <div className="p-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/30 group-hover:rotate-[-90deg] transition-transform duration-500">

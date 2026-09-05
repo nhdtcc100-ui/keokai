@@ -126,12 +126,36 @@ export const imageService = {
       console.warn('[imageService] Storage upload error, falling back to base64 data URL:', e);
     }
 
-    // Fallback: convert to optimized data URL so image is always saved and never lost
+    // Fallback: convert to optimized compact data URL so image is always saved and never lost
+    try {
+      if (file.type && file.type.startsWith('image/')) {
+        const canvas = document.createElement('canvas');
+        const img = new Image();
+        const src = URL.createObjectURL(file);
+        await new Promise((res, rej) => {
+          img.onload = res;
+          img.onerror = rej;
+          img.src = src;
+        });
+        const maxDim = 800;
+        let w = img.width;
+        let h = img.height;
+        if (w > h && w > maxDim) { h = Math.round((h * maxDim) / w); w = maxDim; }
+        else if (h > maxDim) { w = Math.round((w * maxDim) / h); h = maxDim; }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(src);
+        return canvas.toDataURL('image/jpeg', 0.7);
+      }
+    } catch (_) {}
+
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         if (typeof reader.result === 'string') resolve(reader.result);
-        else reject(new Error('Failed to encode image'));
+        else reject(new Error('Failed to encode file'));
       };
       reader.onerror = reject;
       reader.readAsDataURL(file);

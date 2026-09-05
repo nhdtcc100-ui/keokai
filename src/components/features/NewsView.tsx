@@ -132,9 +132,9 @@ const fetchFeed = async (feed: { url: string; region: NewsItem['region']; label:
 
 const assignTopic = (text: string): NewsItem['topic'] => {
   const t = text.toLowerCase();
-  if (/وظيف|توظيف|job|career|hire|recruit|عمل/.test(t)) return 'وظائف';
-  if (/تقنية|تكنول|ذكاء|برمج|tech|software|ai|digital|رقم/.test(t)) return 'تقنية';
-  if (/اقتصاد|اقتصادي|سوق|نفط|economy|finance|market|invest|gdp/.test(t)) return 'اقتصاد';
+  if (/فرصة عمل|فرص عمل|مطلوب موظف|مطلوب موظفة|وظائف|وظيفة|توظيف|job|career|hiring|recruit|شواغر|سيرة ذاتية|التقديم على/.test(t)) return 'وظائف';
+  if (/تقنية|تكنول|ذكاء|برمج|tech|software|ai|digital|رقمي/.test(t)) return 'تقنية';
+  if (/اقتصاد|اقتصادي|سوق|نفط|بورصة|finance|market|invest|gdp/.test(t)) return 'اقتصاد';
   return 'مقالات';
 };
 
@@ -428,13 +428,23 @@ export function NewsView({ appUser }: { appUser: any }) {
 
   const [tgInput, setTgInput] = useState('');
   const [showSources, setShowSources] = useState(false);
+
+  // Allowed Telegram sources (admin-defined only)
+  const DEFAULT_TG_SOURCES = [
+    { id: '1', username: 'thekhana', label: 'الخانة', enabled: true },
+    { id: '2', username: 'Keko4444', label: 'الوسيط', enabled: true },
+    { id: '3', username: 'engahmad88', label: 'أحمد إنج', enabled: true },
+  ];
+
   const [sources, setSources] = useState<any[]>(() => {
-    const saved = localStorage.getItem('prolink_news_sources_v1');
-    return saved ? JSON.parse(saved) : [
-      { id: '1', username: 'thekhana', label: 'الخانة', enabled: true },
-      { id: '2', username: 'Keko4444', label: 'الوسيط', enabled: true },
-      { id: '3', username: 'engahmad88', label: 'أحمد إنج', enabled: true }
-    ];
+    try {
+      const saved = localStorage.getItem('prolink_news_sources_v1');
+      if (!saved) return DEFAULT_TG_SOURCES;
+      const parsed = JSON.parse(saved);
+      // Validate: only keep sources whose username matches known list or was explicitly saved
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch {}
+    return DEFAULT_TG_SOURCES;
   });
 
   useEffect(() => {
@@ -468,24 +478,20 @@ export function NewsView({ appUser }: { appUser: any }) {
     try {
       const activeSources = sources.filter(s => s.enabled);
 
+      // Build allowed source labels for strict filtering
+      const allowedSources = new Set<string>([
+        ...FEEDS.map(f => f.label),
+        ...activeSources.map(s => `@${s.username}`),
+      ]);
+
       const allFeedPromises = [
+        // Telegram channels (only configured app sources)
         ...activeSources.map(async (src) => {
           try {
             const items = await newsService.fetchRSS(newsService.getTelegramRssUrl(src.username), `@${src.username}`);
             return items.map(item => {
               const cleanContent = newsService.cleanText(item.content);
-              return { ...item, title: newsService.cleanText(item.title), content: cleanContent, description: cleanContent, region: 'iraq' as const, topic: 'وظائف' } as NewsItem;
-            });
-          } catch { return [] as NewsItem[]; }
-        }),
-        ...FEEDS.map(feed => fetchFeed(feed)),
-        ...newsService.getDefaultSources().map(async s => {
-          try {
-            const items = await newsService.fetchRSS(s.url, s.name);
-            return items.map(item => {
-              const cleanContent = newsService.cleanText(item.content);
-              const title = newsService.cleanText(item.title);
-              return { ...item, title, content: cleanContent, description: cleanContent, region: assignRegion(title + ' ' + cleanContent, 'iraq') as any, topic: assignTopic(title + ' ' + cleanContent) } as NewsItem;
+              return { ...item, title: newsService.cleanText(item.title), content: cleanContent, description: cleanContent, region: 'iraq' as const, topic: 'وظائف', source: `@${src.username}` } as NewsItem;
             });
           } catch { return [] as NewsItem[]; }
         }),
@@ -494,14 +500,16 @@ export function NewsView({ appUser }: { appUser: any }) {
       const results = await Promise.allSettled(allFeedPromises);
       const collected: NewsItem[] = results
         .filter(r => r.status === 'fulfilled')
-        .flatMap(r => (r as PromiseFulfilledResult<NewsItem[]>).value);
+        .flatMap(r => (r as PromiseFulfilledResult<NewsItem[]>).value)
+        // ✅ Strict source filter: only keep items from registered sources
+        .filter(n => !n.source || allowedSources.has(n.source));
 
       if (collected.length > 0) {
         const seen = new Set<string>();
         const merged = collected
           .filter(n => { const k = n.title.slice(0, 40); if (seen.has(k)) return false; seen.add(k); return true; })
           .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime())
-          .slice(0, 50);
+          .slice(0, 60);
 
         setNews(merged);
         setIsLive(true);
@@ -575,8 +583,8 @@ export function NewsView({ appUser }: { appUser: any }) {
 
   return (
     <div className="space-y-5 pb-28 text-slate-800 dark:text-slate-100" dir="rtl">
-      {/* Header */}
-      <div className="flex flex-col gap-4">
+      {/* ── Top Header & Filters Card — Dark themed in dark mode ── */}
+      <div className="p-5 sm:p-6 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 shrink-0">
@@ -587,14 +595,20 @@ export function NewsView({ appUser }: { appUser: any }) {
                 <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                   المركز الإخباري
                 </h2>
-                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60">
-                  بث مباشر 🔴
-                </span>
+                {appUser?.isAdmin && (
+                  <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60">
+                    بث مباشر 🔴
+                  </span>
+                )}
               </div>
               <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
-                {isLive
-                  ? <><Wifi size={11} className="text-emerald-500" /><span className="text-emerald-600 dark:text-emerald-400">بث مباشر من {sources.filter(s=>s.enabled).length} قنوات</span></>
-                  : <><WifiOff size={11} /><span>أخبار محررة</span></>}
+                {appUser?.isAdmin ? (
+                  isLive
+                    ? <><Wifi size={11} className="text-emerald-500" /><span className="text-emerald-600 dark:text-emerald-400">بث مباشر من {sources.filter(s=>s.enabled).length} قنوات</span></>
+                    : <><WifiOff size={11} /><span>أخبار محررة</span></>
+                ) : (
+                  <span>أحدث مستجدات سوق العمل والفرص المهنية</span>
+                )}
                 {lastFetch && <span className="text-slate-400 dark:text-slate-500">• {safeTimeAgo(lastFetch.toISOString())}</span>}
               </p>
             </div>
@@ -607,7 +621,7 @@ export function NewsView({ appUser }: { appUser: any }) {
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black transition-all border shadow-sm ${
                   showSources 
                     ? 'bg-blue-600 text-white border-transparent' 
-                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
                 }`}
               >
                 <Globe size={14} />
@@ -628,9 +642,9 @@ export function NewsView({ appUser }: { appUser: any }) {
               <span>تحديث الأخبار</span>
             </button>
 
-            {/* Sources Dashboard Dropdown */}
+            {/* Sources Dashboard Dropdown (Admins only) */}
             <AnimatePresence>
-              {showSources && (
+              {appUser?.isAdmin && showSources && (
                 <motion.div 
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -690,13 +704,13 @@ export function NewsView({ appUser }: { appUser: any }) {
         </div>
 
         {/* Region filter pills */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar py-2 -my-2 mb-1 px-1" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex gap-2 overflow-x-auto no-scrollbar py-1" style={{ scrollbarWidth: 'none' }}>
           {REGIONS.map(r => (
             <button key={r.id} onClick={() => setRegion(r.id as any)}
               className={`shrink-0 px-4 py-2 rounded-xl text-[10px] font-black transition-all border ${
                 region === r.id 
                   ? `${r.cls} text-white border-transparent shadow-md` 
-                  : 'bg-white dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 border-slate-100 dark:border-slate-700 hover:border-slate-200 shadow-sm'
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 shadow-sm'
               }`}>
               {r.label}
             </button>
@@ -704,7 +718,7 @@ export function NewsView({ appUser }: { appUser: any }) {
         </div>
 
         {/* Topic filter */}
-        <div className="flex gap-2 p-2 mt-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-x-auto no-scrollbar" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex gap-2 p-1.5 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 overflow-x-auto no-scrollbar" style={{ scrollbarWidth: 'none' }}>
           {TOPICS.map(t => (
             <button key={t} onClick={() => setTopic(t)}
               className={`shrink-0 px-4 py-2 rounded-xl text-[10px] font-black transition-all whitespace-nowrap ${

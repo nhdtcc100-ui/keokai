@@ -266,24 +266,82 @@ export function ProfilePage({
     }
   }, [user?.id, isMe, setAppUser, onSave, addToast, profile, formData, pendingCV]);
 
-  const handleFieldChange = useCallback((field: string, value: any) => {
+  const handleFieldChange = useCallback(async (field: string, value: any) => {
     const newData = { ...formData, [field]: value };
     setFormData(newData);
-    setSaveStatus('idle');
-  }, [formData]);
 
-  // ── CV: local reference only, upload deferred to handleManualSave ──
+    // If changing 'open_to' (status), persist immediately to database and global context
+    if (field === 'open_to' && user?.id) {
+      setSaveStatus('saving');
+      try {
+        await profileService.updateProfile(user.id, { open_to: value });
+        if (isMe && setAppUser) {
+          setAppUser((prev: any) => prev ? { ...prev, open_to: value } : null);
+        }
+        if (onSave) await onSave({ open_to: value });
+        setSaveStatus('saved');
+        addToast('تم تحديث حالة التوفر وحفظها مباشرة! ✨', 'success');
+        setTimeout(() => setSaveStatus('idle'), 2000);
+      } catch (err: any) {
+        setSaveStatus('error');
+        addToast('فشل حفظ حالة التوفر: ' + (err.message || ''), 'error');
+        setTimeout(() => setSaveStatus('idle'), 3000);
+      }
+    } else {
+      setSaveStatus('idle');
+    }
+  }, [formData, user?.id, isMe, setAppUser, onSave, addToast]);
+
+  // ── CV: Instant Direct Upload & Database Persistence ──
   const handleCVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user?.id) return;
 
-    const { inspectUploadedFile } = await import('../../../lib/security/fileInspector');
-    const check = await inspectUploadedFile(file, user, '/profile/cv-upload');
-    if (!check.safe) { addToast(check.error || 'تم حظر الملف لدواعي أمنية', 'error'); return; }
+    try {
+      const { inspectUploadedFile } = await import('../../../lib/security/fileInspector');
+      const check = await inspectUploadedFile(file, user, '/profile/cv-upload');
+      if (!check.safe) { addToast(check.error || 'تم حظر الملف لدواعي أمنية', 'error'); return; }
+    } catch (_) {}
 
-    setPendingCV(file);
-    setPendingCVName(file.name);
-    addToast(`تم اختيار ${file.name} ✅ اضغط حفظ لرفعه`);
+    setSaveStatus('saving');
+    addToast('جاري رفع وتثبيت السيرة الذاتية... ⏳');
+
+    try {
+      // Remove old CV if exists
+      if (formData.cvUrl) {
+        try {
+          const oldPath = formData.cvUrl.split('/profiles/').pop();
+          if (oldPath) await (supabase.storage.from('profiles') as any).remove([oldPath]);
+        } catch {}
+      }
+
+      const url = await imageService.processAndUpload(file, user.id, 'profiles');
+      const updatedData = { ...formData, cvUrl: url, cv_url: url };
+      setFormData(updatedData);
+
+      const { error } = await profileService.updateProfile(user.id, {
+        cvUrl: url,
+        cv_url: url
+      });
+      if (error) throw error;
+
+      if (isMe && setAppUser) {
+        setAppUser((prev: any) => prev ? { ...prev, cvUrl: url, cv_url: url } : null);
+      }
+      if (onSave) {
+        await onSave({ cvUrl: url, cv_url: url });
+      }
+
+      setPendingCV(null);
+      setPendingCVName(null);
+      setSaveStatus('saved');
+      addToast('تم رفع وتثبيت السيرة الذاتية بنجاح! 📄', 'success');
+      setTimeout(() => setSaveStatus('idle'), 2500);
+    } catch (err: any) {
+      setSaveStatus('error');
+      addToast('فشل رفع السيرة الذاتية: ' + (err.message || ''), 'error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
   };
 
   const handleDownloadCV = () => {

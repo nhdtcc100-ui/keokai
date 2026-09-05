@@ -806,6 +806,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (jobsRes.data) {
         const mappedJobs = (jobsRes.data as any[]).map(j => ({
           ...j,
+          jobType: j.job_type || j.jobType || 'دوام كامل',
+          working_hours: j.working_hours || j.workingHours || '',
+          workingHours: j.working_hours || j.workingHours || '',
           employerName: j.company,
           postedAt: { toDate: () => new Date(j.created_at) }
         }));

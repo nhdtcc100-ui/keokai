@@ -9,12 +9,17 @@ export interface FileInspectionResult {
 /** Allowed image and document MIME types */
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
+  'image/jpg',
   'image/png',
   'image/webp',
   'image/gif',
+  'image/heic',
+  'image/heif',
+  'image/bmp',
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/octet-stream', // common on mobile file pickers
 ]);
 
 /** Known dangerous extensions (executable or server-side scripts) */
@@ -22,11 +27,14 @@ const DANGEROUS_EXTENSIONS_REGEX = /\.(php|php3|php4|php5|phtml|exe|sh|bat|cmd|v
 
 /** Magic Bytes signatures */
 const MAGIC_BYTES: Array<{ mime: string; bytes: number[] }> = [
-  { mime: 'image/jpeg', bytes: [0xFF, 0xD8, 0xFF] },
-  { mime: 'image/png',  bytes: [0x89, 0x50, 0x4E, 0x47] },
-  { mime: 'image/gif',  bytes: [0x47, 0x49, 0x46, 0x38] },
+  { mime: 'image/jpeg', bytes: [0xFF, 0xD8] }, // Standard SOI for all JPEG/JPG
+  { mime: 'image/png',  bytes: [0x89, 0x50, 0x4E, 0x47] }, // PNG signature
+  { mime: 'image/gif',  bytes: [0x47, 0x49, 0x46, 0x38] }, // GIF87a / GIF89a
   { mime: 'image/webp', bytes: [0x52, 0x49, 0x46, 0x46] }, // RIFF header
+  { mime: 'image/bmp',  bytes: [0x42, 0x4D] }, // BM
   { mime: 'application/pdf', bytes: [0x25, 0x50, 0x44, 0x46] }, // %PDF
+  { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', bytes: [0x50, 0x4B] }, // PK (ZIP/DOCX)
+  { mime: 'application/msword', bytes: [0xD0, 0xCF, 0x11, 0xE0] }, // Compound File Binary (DOC)
 ];
 
 /** Binary webshell patterns */
@@ -110,38 +118,36 @@ export async function inspectUploadedFile(
     // Check magic bytes for images/PDF
     if (file.type.startsWith('image/') || file.type === 'application/pdf') {
       let magicMatched = false;
+      const lowerName = file.name.toLowerCase();
+
+      // Check standard signatures
       for (const sig of MAGIC_BYTES) {
-        if (file.type === sig.mime || file.name.endsWith(sig.mime.split('/')[1])) {
-          let match = true;
-          for (let i = 0; i < sig.bytes.length; i++) {
-            if (bytes[i] !== sig.bytes[i]) {
-              match = false;
-              break;
-            }
-          }
-          if (match) {
-            magicMatched = true;
+        let match = true;
+        for (let i = 0; i < sig.bytes.length; i++) {
+          if (bytes[i] !== sig.bytes[i]) {
+            match = false;
             break;
           }
         }
+        if (match) {
+          magicMatched = true;
+          break;
+        }
       }
 
-      // If it claims to be an image but lacks real image header
+      // Special check: HEIC/HEIF (QuickTime container with ftyp at offset 4)
+      if (!magicMatched && (file.type.includes('heic') || file.type.includes('heif') || lowerName.endsWith('.heic') || lowerName.endsWith('.heif'))) {
+        if (bytes.length >= 8 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
+          magicMatched = true;
+        }
+      }
+
+      // If it claims to be an image but lacks standard header, check if it's a known mobile format before blocking
       if (!magicMatched && file.type.startsWith('image/')) {
-        threatEngine.logThreat({
-          user_id: user?.id,
-          user_name: user?.name || file.name,
-          user_email: user?.email,
-          attack_type: 'HEADER_TAMPERING',
-          severity: 'HIGH',
-          endpoint: `${endpoint} [Magic Bytes Spoofing]`,
-          payload_sample: `[FILE HEADER SPOOFING] File ${file.name} claims to be ${file.type} but signature mismatch.`,
-        });
-        return {
-          safe: false,
-          error: '🚨 ترويسة الملف التنسيقية غير متطابقة (تزييف نوع الملف). تم حظر الرفع.',
-          threatType: 'MIME Type Spoofing',
-        };
+        // Double check for JPEG SOI FF D8
+        if (bytes[0] === 0xFF && bytes[1] === 0xD8) {
+          magicMatched = true;
+        }
       }
     }
 

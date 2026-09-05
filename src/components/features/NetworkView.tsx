@@ -68,7 +68,12 @@ export function NetworkView({ users, appUser, connections, onUserClick, onSyncSi
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      list = list.filter(u => u.name.toLowerCase().includes(q) || u.companyName?.toLowerCase().includes(q));
+      list = list.filter(u => 
+        u.name.toLowerCase().includes(q) || 
+        u.companyName?.toLowerCase().includes(q) ||
+        u.title?.toLowerCase().includes(q) ||
+        u.location?.toLowerCase().includes(q)
+      );
     }
     return list;
   }, [users, activeTab, searchQuery, connections, currentId]);
@@ -116,6 +121,31 @@ export function NetworkView({ users, appUser, connections, onUserClick, onSyncSi
               ))}
             </div>
           </div>
+
+          {/* Row 2: Search Bar — visible in discover & connections tabs */}
+          {(activeTab === 'discover' || activeTab === 'connections') && (
+            <div className="relative">
+              <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                <Search size={15} className="text-slate-400" />
+              </div>
+              <input
+                id="network-search-input"
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder={activeTab === 'discover' ? 'ابحث عن محترف...' : 'ابحث في شبكتك...'}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl pr-9 pl-4 py-2.5 text-xs font-bold text-slate-800 dark:text-white outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/20 transition-all shadow-sm placeholder:text-slate-400"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute inset-y-0 left-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <span className="text-xs font-black">✕</span>
+                </button>
+              )}
+            </div>
+          )}
 
         </div>
       </div>
