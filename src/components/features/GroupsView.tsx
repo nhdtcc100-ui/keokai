@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Plus, ArrowRight, Lock, Globe } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { groupService } from '../../lib/services/groupService';
 import { GroupCard, GroupDetailView } from './groups';
 import { AppUser } from '../../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -92,9 +93,9 @@ export function GroupsView({ addToast, appUser, sharedPost, onClearSharedPost, o
     if (!appUser) return;
     setCreating(true);
     try {
-      const { data: group, error } = await supabase.from('groups').insert([{ ...createForm, created_by: appUser.id }]).select().single();
+      const { data: group, error } = await groupService.createGroup(createForm, appUser.id);
       if (error) throw error;
-      await supabase.from('group_members').insert([{ group_id: (group as any).id, user_id: appUser.id, role: 'owner', status: 'accepted' }]);
+      if (!group) throw new Error('فشل إنشاء المجموعة');
 
       // Optimistic update: add group immediately to local state
       const newGroup = group as any;

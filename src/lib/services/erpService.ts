@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import { Employee, Attendance } from '../../types';
+import { generateUUID } from '../security/distributedId';
 
 export const erpService = {
   async hireEmployee(data: Partial<Employee>) {
@@ -20,7 +21,7 @@ export const erpService = {
       
       if (error) {
         if (error.code === '42P01' || error.code === 'PGRST205') {
-           return { data: { ...data, id: Date.now().toString() }, error: null };
+           return { data: { ...data, id: generateUUID() }, error: null };
         }
         throw error;
       }
@@ -71,7 +72,7 @@ export const erpService = {
         .single();
         
       if (error) {
-        if (error.code === '42P01' || error.code === 'PGRST205') return { data: { id: Date.now().toString(), status }, error: null };
+        if (error.code === '42P01' || error.code === 'PGRST205') return { data: { id: generateUUID(), status }, error: null };
         throw error;
       }
       return { data, error: null };

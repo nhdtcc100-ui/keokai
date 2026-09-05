@@ -3,6 +3,10 @@ import { sanitizeInput } from '../security/inputValidator';
 import { validateFile, imageService } from './imageService';
 import { verifyFileMimeType } from '../security/mimeValidator';
 import { logger } from '../logger';
+import { withMutex } from './concurrencyMutex';
+import { idempotencyEngine, withIdempotency } from './idempotencyEngine';
+import { withCollisionRetry } from './collisionHandler';
+import { generateUUID } from '../security/distributedId';
 
 // ✅ Whitelist of allowed job types to prevent injection
 const ALLOWED_JOB_TYPES = ['دوام كامل', 'دوام جزئي', 'عن بُعد', 'عقد', 'تدريب', 'مؤقت'];
@@ -19,64 +23,78 @@ export const jobService = {
   },
 
   async postJob(data: any) {
-    // ✅ Comprehensive Input Defense: Validate all fields before inserting
-    const title = sanitizeInput(data.title || '', 200);
-    const company = sanitizeInput(data.company || '', 200);
-    const description = sanitizeInput(data.description || '', 5000);
-    const location = sanitizeInput(data.location || '', 200);
-    const salary = sanitizeInput(data.salary || '', 100);
-    const requirements = sanitizeInput(data.requirements || '', 3000);
+    const employerId = data.employer_id || 'anonymous';
+    const mutexKey = `job_post_${employerId}`;
+    const idempotencyKey = idempotencyEngine.generateKey('jobs', employerId, {
+      title: data.title,
+      company: data.company,
+      employer_id: employerId,
+    });
 
-    // ✅ Whitelist validation for job_type (prevents injection via enum-like values)
-    const jobType = ALLOWED_JOB_TYPES.includes(data.jobType)
-      ? data.jobType
-      : 'دوام كامل';
+    return withMutex(mutexKey, () =>
+      withIdempotency(
+        idempotencyKey,
+        async () => {
+          // ✅ Comprehensive Input Defense: Validate all fields before inserting
+          const title = sanitizeInput(data.title || '', 200);
+          const company = sanitizeInput(data.company || '', 200);
+          const description = sanitizeInput(data.description || '', 5000);
+          const location = sanitizeInput(data.location || '', 200);
+          const salary = sanitizeInput(data.salary || '', 100);
+          const requirements = sanitizeInput(data.requirements || '', 3000);
 
-    // ✅ Validate required fields
-    if (!title || title.length < 2) {
-      return { data: null, error: { message: 'عنوان الوظيفة مطلوب ويجب أن يكون حرفين على الأقل' } };
-    }
-    if (!company || company.length < 2) {
-      return { data: null, error: { message: 'اسم الشركة مطلوب' } };
-    }
-    if (!description || description.length < 10) {
-      return { data: null, error: { message: 'وصف الوظيفة مطلوب (10 أحرف على الأقل)' } };
-    }
+          // ✅ Whitelist validation for job_type (prevents injection via enum-like values)
+          const jobType = ALLOWED_JOB_TYPES.includes(data.jobType)
+            ? data.jobType
+            : 'دوام كامل';
 
-    // 🚫 Strict Server/Service Guard: Only Employers and Admins can post jobs
-    if (data.employer_id) {
-      const { data: profile } = await supabase.from('profiles').select('id, role, is_admin').eq('id', data.employer_id).single();
-      if (profile && !profile.is_admin && (profile.role === 'seeker' || profile.role === 'باحث' || profile.role !== 'employer')) {
-        return { data: null, error: { message: 'نشر الوظائف مخصص لأصحاب العمل والمؤسسات فقط 🚫' } };
-      }
-    }
+          // ✅ Validate required fields
+          if (!title || title.length < 2) {
+            return { data: null, error: { message: 'عنوان الوظيفة مطلوب ويجب أن يكون حرفين على الأقل' } };
+          }
+          if (!company || company.length < 2) {
+            return { data: null, error: { message: 'اسم الشركة مطلوب' } };
+          }
+          if (!description || description.length < 10) {
+            return { data: null, error: { message: 'وصف الوظيفة مطلوب (10 أحرف على الأقل)' } };
+          }
 
-    try {
-      const workingHours = sanitizeInput(data.working_hours || '', 100);
+          // 🚫 Strict Server/Service Guard: Only Employers and Admins can post jobs
+          if (data.employer_id) {
+            const { data: profile } = await supabase.from('profiles').select('id, role, is_admin').eq('id', data.employer_id).single();
+            if (profile && !profile.is_admin && (profile.role === 'seeker' || profile.role === 'باحث' || profile.role !== 'employer')) {
+              return { data: null, error: { message: 'نشر الوظائف مخصص لأصحاب العمل والمؤسسات فقط 🚫' } };
+            }
+          }
 
-      const { data: res, error } = await (supabase.from('jobs') as any).insert([{
-        title,
-        company,
-        description,
-        location:      location || 'عن بُعد',
-        salary,
-        requirements:  requirements || null,
-        job_type:      jobType,
-        working_hours: workingHours || null,
-        image_url:     (data.imageUrl || '').trim() || null,
-        employer_id:   data.employer_id,
-        is_active:     data.is_active !== undefined ? Boolean(data.is_active) : true,
-      }]).select();
+          return withCollisionRetry(async (_attempt, freshId) => {
+            const workingHours = sanitizeInput(data.working_hours || '', 100);
 
-      if (error) {
-        console.error("[postJob] Supabase Insert Error:", error);
-        return { data: null, error };
-      }
-      return { data: res, error: null };
-    } catch (err: any) {
-      console.error("[postJob] Exception:", err);
-      return { data: null, error: err };
-    }
+            const { data: res, error } = await (supabase.from('jobs') as any).insert([{
+              id:            data.id || freshId,
+              title,
+              company,
+              description,
+              location:      location || 'عن بُعد',
+              salary,
+              requirements:  requirements || null,
+              job_type:      jobType,
+              working_hours: workingHours || null,
+              image_url:     (data.imageUrl || '').trim() || null,
+              employer_id:   data.employer_id,
+              is_active:     data.is_active !== undefined ? Boolean(data.is_active) : true,
+            }]).select();
+
+            if (error) {
+              console.error("[postJob] Supabase Insert Error:", error);
+              return { data: null, error };
+            }
+            return { data: res, error: null };
+          }, { scope: 'postJob' });
+        },
+        { ttlMs: 30000, scope: 'jobs' }
+      )
+    );
   },
 
   async deleteJob(jobId: string, employerId: string) {
@@ -117,60 +135,76 @@ export const jobService = {
       console.error("❌ [SERVICE_ERROR] Employer ID is invalid:", employerId);
       return { data: null, error: { message: "بيانات صاحب العمل مفقودة.", details: "Employer ID is invalid." } };
     }
-    
-    const coverLetterText = sanitizeInput(data.coverLetter || data.notes || '', 3000);
-    const cvUrlText = data.cvUrl || '';
 
-    // 1. Try full insert (all fields including extended metadata)
-    const fullPayload = {
-      applicant_id: applicantId,
-      employer_id: employerId,
-      job_id: data.jobId,
-      cover_letter: coverLetterText,
-      cv_url: cvUrlText,
-      experience: sanitizeInput(data.experience || '', 2000),
-      education: sanitizeInput(data.education || '', 2000),
-      skills: Array.isArray(data.skills) ? data.skills.slice(0, 50) : [],
-      applicant_data: data.applicantData || {},
-      status: 'pending'
-    };
+    const mutexKey = `job_app_${applicantId}_${data.jobId}`;
+    const idempotencyKey = idempotencyEngine.generateKey('job_apps', applicantId, { jobId: data.jobId });
 
-    try {
-      const res = await (supabase.from('job_applications') as any).insert([fullPayload]).select();
-      if (!res.error) return { data: res.data, error: null };
+    return withMutex(mutexKey, () =>
+      withIdempotency(
+        idempotencyKey,
+        async () => {
+          const coverLetterText = sanitizeInput(data.coverLetter || data.notes || '', 3000);
+          const cvUrlText = data.cvUrl || '';
 
-      console.warn("⚠️ [applyToJob] Full payload insert returned error, attempting standard fallback:", res.error);
-      
-      // 2. Fallback level 1: Standard columns without extended schema
-      const standardPayload = {
-        applicant_id: applicantId,
-        employer_id: employerId,
-        job_id: data.jobId,
-        cover_letter: coverLetterText,
-        cv_url: cvUrlText,
-        status: 'pending'
-      };
+          return withCollisionRetry(async (_attempt, freshId) => {
+            // 1. Try full insert (all fields including extended metadata)
+            const fullPayload = {
+              id: freshId,
+              applicant_id: applicantId,
+              employer_id: employerId,
+              job_id: data.jobId,
+              cover_letter: coverLetterText,
+              cv_url: cvUrlText,
+              experience: sanitizeInput(data.experience || '', 2000),
+              education: sanitizeInput(data.education || '', 2000),
+              skills: Array.isArray(data.skills) ? data.skills.slice(0, 50) : [],
+              applicant_data: data.applicantData || {},
+              status: 'pending'
+            };
 
-      const res2 = await (supabase.from('job_applications') as any).insert([standardPayload]).select();
-      if (!res2.error) return { data: res2.data, error: null };
+            try {
+              const res = await (supabase.from('job_applications') as any).insert([fullPayload]).select();
+              if (!res.error) return { data: res.data, error: null };
 
-      console.warn("⚠️ [applyToJob] Standard payload insert returned error, attempting minimal fallback:", res2.error);
+              console.warn("⚠️ [applyToJob] Full payload insert returned error, attempting standard fallback:", res.error);
+              
+              // 2. Fallback level 1: Standard columns without extended schema
+              const standardPayload = {
+                id: freshId,
+                applicant_id: applicantId,
+                employer_id: employerId,
+                job_id: data.jobId,
+                cover_letter: coverLetterText,
+                cv_url: cvUrlText,
+                status: 'pending'
+              };
 
-      // 3. Fallback level 2: Minimal essential columns
-      const minPayload = {
-        applicant_id: applicantId,
-        job_id: data.jobId,
-        cover_letter: coverLetterText,
-        status: 'pending'
-      };
+              const res2 = await (supabase.from('job_applications') as any).insert([standardPayload]).select();
+              if (!res2.error) return { data: res2.data, error: null };
 
-      const res3 = await (supabase.from('job_applications') as any).insert([minPayload]).select();
-      return { data: res3.data, error: res3.error };
+              console.warn("⚠️ [applyToJob] Standard payload insert returned error, attempting minimal fallback:", res2.error);
 
-    } catch (err: any) {
-      console.error("❌ [applyToJob] exception:", err);
-      return { data: null, error: err };
-    }
+              // 3. Fallback level 2: Minimal essential columns
+              const minPayload = {
+                id: freshId,
+                applicant_id: applicantId,
+                job_id: data.jobId,
+                cover_letter: coverLetterText,
+                status: 'pending'
+              };
+
+              const res3 = await (supabase.from('job_applications') as any).insert([minPayload]).select();
+              return { data: res3.data, error: res3.error };
+
+            } catch (err: any) {
+              console.error("❌ [applyToJob] exception:", err);
+              return { data: null, error: err };
+            }
+          }, { scope: 'applyToJob' });
+        },
+        { ttlMs: 60000, scope: 'job_applications' }
+      )
+    );
   },
 
   async uploadJobImage(userId: string, file: File) {
@@ -187,7 +221,7 @@ export const jobService = {
       }
 
       const fileExt = file.name.split('.').pop() || 'jpg';
-      const fileName = `job-${userId}-${Date.now()}.${fileExt}`;
+      const fileName = `job-${userId}-${generateUUID()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('job-images')
@@ -215,7 +249,7 @@ export const jobService = {
 
     try {
       const fileExt = 'pdf';
-      const fileName = `cv-${userId}-${Date.now()}.${fileExt}`;
+      const fileName = `cv-${userId}-${generateUUID()}.${fileExt}`;
       
       const { error } = await supabase.storage
         .from('applications')

@@ -1,4 +1,5 @@
 import { supabase } from '../supabase';
+import { generateUUID } from '../security/distributedId';
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/jpg', 'image/heic', 'image/heif', 'image/bmp'];
 const ALLOWED_DOC_TYPES   = ['application/pdf'];
@@ -29,7 +30,7 @@ export const imageService = {
   ): Promise<{ signedUrl: string; path: string; publicUrl: string } | null> {
     try {
       const fileExt = fileType.split('/')[1] || 'bin';
-      const path = `${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const path = `${userId}/${generateUUID()}.${fileExt}`;
 
       const { data, error } = await supabase.storage
         .from(bucket)
@@ -111,7 +112,7 @@ export const imageService = {
   async uploadFile(file: File | Blob, userId: string, bucket = 'profiles'): Promise<string> {
     try {
       const fileExt = file instanceof File ? file.name.split('.').pop() : 'jpg';
-      const fileName = `${userId}/${Date.now()}.${fileExt}`;
+      const fileName = `${userId}/${generateUUID()}.${fileExt}`;
       const contentType = file instanceof File ? file.type : 'image/jpeg';
 
       const { error: uploadError } = await supabase.storage

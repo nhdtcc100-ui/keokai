@@ -1,4 +1,5 @@
 import { supabase } from '../supabase';
+import { generateDistributedId } from '../security/distributedId';
 
 export const courseService = {
   async fetchCourses(limit = 50) {
@@ -131,7 +132,7 @@ export const courseService = {
         }
       }
 
-      return { data: reg || [{ id: 'reg_' + Date.now() }], error: null };
+      return { data: reg || [{ id: generateDistributedId('reg') }], error: null };
     } catch (err: any) {
       return { data: null, error: err };
     }

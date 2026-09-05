@@ -3,6 +3,11 @@ import { Post, AppUser } from '../../types';
 import { sanitizeInput, sanitizeComment } from '../security/inputValidator';
 import { canUserPostAndInteract } from '../utils/roleUtils';
 
+import { withMutex } from './concurrencyMutex';
+import { idempotencyEngine, withIdempotency } from './idempotencyEngine';
+import { withCollisionRetry } from './collisionHandler';
+import { generateUUID } from '../security/distributedId';
+
 // ✅ Max content lengths to prevent payload abuse
 const MAX_POST_LENGTH = 5000;
 const MAX_ECHO_LENGTH = 3000;
@@ -57,30 +62,57 @@ export const postService = {
   },
 
   async createPost(postData: any) {
-    // 🚫 Strict Server/Service Guard: Seekers cannot create posts
-    if (postData.author_id) {
-      const { data: profile } = await supabase.from('profiles').select('id, role, is_admin').eq('id', postData.author_id).single();
-      if (profile && !canUserPostAndInteract(profile)) {
-        return { data: null, error: { message: 'غير مصرح للباحثين عن عمل بنشر المنشورات 🚫' } };
-      }
-    }
+    const authorId = postData.author_id || 'anonymous';
+    const mutexKey = `post_create_${authorId}`;
+    const idempotencyKey = idempotencyEngine.generateKey('posts', authorId, {
+      content: postData.content,
+      media_url: postData.media_url,
+      author_id: authorId,
+    });
 
-    // ✅ Sanitize all text fields & scan for threat injections before inserting
-    const user = { id: postData.author_id, name: postData.author_name };
-    const sanitized = {
-      ...postData,
-      content: sanitizeInput(postData.content || '', MAX_POST_LENGTH, user),
-      author_name: sanitizeInput(postData.author_name || '', 100, user),
-    };
-    try {
-      const res = await (supabase.from('posts') as any).insert([{ ...sanitized, dislikes_count: 0 }]);
-      if (res.error && (res.error.code === '42703' || res.error.message?.includes('dislikes_count'))) {
-        return (supabase.from('posts') as any).insert([sanitized]);
-      }
-      return res;
-    } catch {
-      return (supabase.from('posts') as any).insert([sanitized]);
-    }
+    return withMutex(mutexKey, () =>
+      withIdempotency(
+        idempotencyKey,
+        async () => {
+          // 🚫 Strict Server/Service Guard: Seekers cannot create posts
+          if (postData.author_id) {
+            const { data: profile } = await supabase.from('profiles').select('id, role, is_admin').eq('id', postData.author_id).single();
+            if (profile && !canUserPostAndInteract(profile)) {
+              return { data: null, error: { message: 'غير مصرح للباحثين عن عمل بنشر المنشورات 🚫' } };
+            }
+          }
+
+          // ✅ Sanitize all text fields & scan for threat injections before inserting
+          const user = { id: postData.author_id, name: postData.author_name };
+          const sanitized = {
+            ...postData,
+            content: sanitizeInput(postData.content || '', MAX_POST_LENGTH, user),
+            author_name: sanitizeInput(postData.author_name || '', 100, user),
+          };
+
+          return withCollisionRetry(async (_attempt, freshId) => {
+            const rowToInsert = {
+              id: sanitized.id || freshId,
+              ...sanitized,
+              dislikes_count: 0,
+            };
+
+            try {
+              const res = await (supabase.from('posts') as any).insert([rowToInsert]);
+              if (res.error && (res.error.code === '42703' || res.error.message?.includes('dislikes_count'))) {
+                const { dislikes_count, ...fallbackRow } = rowToInsert;
+                return (supabase.from('posts') as any).insert([fallbackRow]);
+              }
+              return res;
+            } catch {
+              const { dislikes_count, ...fallbackRow } = rowToInsert;
+              return (supabase.from('posts') as any).insert([fallbackRow]);
+            }
+          }, { scope: 'createPost' });
+        },
+        { ttlMs: 15000, scope: 'posts' }
+      )
+    );
   },
 
   /**

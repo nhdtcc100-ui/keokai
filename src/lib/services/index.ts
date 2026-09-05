@@ -4,3 +4,8 @@ export * from './jobService';
 export * from './networkService';
 export * from './profileService';
 export * from './courseService';
+export * from './groupService';
+export * from './concurrencyMutex';
+export * from './idempotencyEngine';
+export * from './collisionHandler';
+export * from '../security/distributedId';

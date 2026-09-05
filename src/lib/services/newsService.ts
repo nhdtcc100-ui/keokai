@@ -1,4 +1,5 @@
 import { supabase } from '../supabase';
+import { generateDistributedId } from '../security/distributedId';
 
 export interface NewsItem {
   id: string;
@@ -144,7 +145,7 @@ export const newsService = {
             }
 
             return {
-              id: `tg-${cleanUser}-${idx}-${Date.now()}`,
+              id: generateDistributedId(`tg-${cleanUser}-${idx}`),
               title: this.cleanText(title),
               link: linkEl?.href || `https://t.me/${cleanUser}`,
               pubDate: dateEl?.dateTime || new Date().toISOString(),
