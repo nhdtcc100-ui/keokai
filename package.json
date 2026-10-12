@@ -10,6 +10,7 @@
     "cap:sync": "vite build && cap sync android",
     "cap:open": "cap open android",
     "preview": "vite preview",
+    "ship": "git add -A && git commit -m \"chore: update app\" && git push origin main",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "seed": "node tests/load/seed-data.js",
