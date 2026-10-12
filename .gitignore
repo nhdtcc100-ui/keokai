@@ -15,9 +15,15 @@ node.exe
 node-v25.9.0-win-x64/
 npm
 npm.cmd
+npm.ps1
+npx.ps1
 npm-core/
 npm_backup
 .idea/
 .vscode/
 *.tmp
 *.bak
+*.cjs
+tsc_errors.txt
+extracted_*.json
+scratch/
