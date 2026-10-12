@@ -9,6 +9,7 @@ import { Job, AppUser } from '../../../types';
 import { useAppContext } from '../../../contexts/AppContext';
 import { safeTimeAgo } from '../../../lib/utils/formatDate';
 import { supabase } from '../../../lib/supabase';
+import { getJobCategory, cleanJobDescription } from '../../../lib/utils/jobCategoryUtils';
 
 interface JobCardProps {
   job: Job;
@@ -257,9 +258,14 @@ export const JobCard = React.memo(({ job, onClick, delay = 0, compact = false, m
               <h4 className="font-black text-slate-800 dark:text-white text-xl leading-tight group-hover:text-[#0a66c2] dark:group-hover:text-blue-400 transition-colors tracking-tight line-clamp-1">
                 {job.title}
               </h4>
-              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-black text-xs uppercase tracking-wide">
-                <Building2 size={14} className="text-[#0a66c2] dark:text-blue-500" />
-                <span className="truncate">{job.company}</span>
+              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-black text-xs uppercase tracking-wide flex-wrap">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Building2 size={14} className="text-[#0a66c2] dark:text-blue-500 shrink-0" />
+                  <span className="truncate">{job.company}</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 text-[10px] font-black border border-blue-200/50 dark:border-blue-800/50 shrink-0 shadow-xs">
+                  {getJobCategory(job)}
+                </span>
               </div>
             </div>
 
@@ -447,7 +453,7 @@ export const JobCard = React.memo(({ job, onClick, delay = 0, compact = false, m
         </div>
 
         <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold leading-relaxed mt-5 line-clamp-2" dir="auto">
-          {job.description}
+          {cleanJobDescription(job.description)}
         </p>
 
         {/* Footer */}

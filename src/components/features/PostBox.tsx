@@ -270,7 +270,6 @@ export const PostBox: React.FC<PostBoxProps> = ({ avatar, appUser, addToast }) =
             label="نشر وظيفة" 
           />
         )}
-        <ActionBtn onClick={() => setUploadType('article')} icon={<div className="p-2 bg-rose-50 dark:bg-rose-900/30 rounded-xl shadow-sm"><FileText className="text-rose-600" size={18} /></div>} label="مقال" />
       </div>
 
       <AnimatePresence>
@@ -322,7 +321,7 @@ export const PostBox: React.FC<PostBoxProps> = ({ avatar, appUser, addToast }) =
               id="post-content"
               name="content"
               className={`w-full bg-slate-50 dark:bg-slate-900 rounded-[1.5rem] p-5 text-sm text-slate-700 dark:text-white h-32 focus:outline-none focus:ring-8 transition-all font-sans font-medium shadow-inner resize-none leading-relaxed border ${postError ? 'border-red-400 focus:ring-red-100' : 'border-transparent focus:ring-blue-50/50 dark:focus:ring-blue-900/10'}`}
-              placeholder={uploadType === 'job' ? "أدخل تفاصيل الوظيفة..." : (uploadType === 'article' ? "اكتب مقالك الاحترافي هنا..." : "بماذا تفكر الآن؟")}
+              placeholder={uploadType === 'job' ? "أدخل تفاصيل الوظيفة..." : "بماذا تفكر الآن؟ شارك إشارتك المهنية..."}
               value={content}
               onChange={e => handleContentChange(e.target.value)}
             />

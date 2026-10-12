@@ -311,8 +311,41 @@ export const authService = {
     return supabase.auth.resend({ type: 'signup', email: cleanEmail });
   },
 
-  // ── Role Selection (شاشة اختيار الدور بعد تأكيد البريد) ──────────────────
-  async selectRole(userId: string, role: 'seeker' | 'employer', userData: Record<string, unknown>) {
+  // ── Role Selection (شاشة اختيار الدور أو تحويل نوع الحساب) ──────────────────
+  async selectRole(
+    userId: string, 
+    role: 'seeker' | 'employer' | 'freelancer', 
+    userData: Record<string, unknown> = {}
+  ) {
+    const extraUpdates: Record<string, any> = {};
+    if (userData.display_title) extraUpdates.display_title = sanitizeInput(userData.display_title as string, 120);
+    if (userData.displayTitle) extraUpdates.display_title = sanitizeInput(userData.displayTitle as string, 120);
+    if (userData.specialty) extraUpdates.specialty = sanitizeInput(userData.specialty as string, 100);
+    if (userData.freelancer_type) extraUpdates.freelancer_type = userData.freelancer_type;
+    if (userData.freelancerType) extraUpdates.freelancer_type = userData.freelancerType;
+    if (userData.home_address) extraUpdates.home_address = sanitizeInput(userData.home_address as string, 200);
+    if (userData.homeAddress) extraUpdates.home_address = sanitizeInput(userData.homeAddress as string, 200);
+    if (userData.service_request) extraUpdates.service_request = sanitizeInput(userData.service_request as string, 500);
+    if (userData.serviceRequest) extraUpdates.service_request = sanitizeInput(userData.serviceRequest as string, 500);
+    if (userData.location) extraUpdates.location = sanitizeInput(userData.location as string, 100);
+    if (userData.phone) extraUpdates.phone = sanitizeInput(userData.phone as string, 30);
+
+    // 1. تحقق أولاً إذا كان الحساب والملف الشخصي موجوداً بالفعل
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id, name, role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (existing) {
+      // ✅ الحساب موجود: نُحدِّث فقط الدور (role) مع أي بيانات إضافية
+      return supabase
+        .from('profiles')
+        .update({ role: role, ...extraUpdates })
+        .eq('id', userId);
+    }
+
+    // 2. مستخدم جديد لأول مرة عند التسجيل:
     const cleanName = sanitizeInput(
       (userData?.full_name as string) ||
       (userData?.name as string) ||
@@ -327,12 +360,13 @@ export const authService = {
       email: (userData?.email as string) || '',
       avatar_url: (userData?.avatar_url as string) || null,
       phone: (userData?.phone as string) || '',
-      role: role,       // ← الآن يُحدَّث الدور الذي اختاره المستخدم
+      role: role,
       is_pro: false,
-      bio: ''
+      bio: '',
+      ...extraUpdates,
     };
 
-    // upsert: سينشئ إذا لم يكن موجوداً، أو يُحدِّث role إذا كان موجوداً مع role=NULL
+    // upsert: سينشئ إذا لم يكن موجوداً
     return supabase.from('profiles').upsert(profileData as any, {
       onConflict: 'id',
       ignoreDuplicates: false,
@@ -368,7 +402,7 @@ export const unifiedAuth = async (
   pass: string, 
   name?: string, 
   mode: "login" | "signup" = "login",
-  role: 'seeker' | 'employer' = 'seeker'
+  role: 'seeker' | 'employer' | 'freelancer' = 'seeker'
 ) => {
   const cleanId = identifier.trim();
   const isEmail = cleanId.includes("@");

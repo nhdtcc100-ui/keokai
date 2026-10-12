@@ -25,6 +25,8 @@ import {
   AnalyticsDashboard,
 } from './missions';
 
+import { getJobCategory } from '../../lib/utils/jobCategoryUtils';
+
 interface MissionsViewProps {
   jobs: Job[];
   appUser: AppUser | null;
@@ -38,7 +40,7 @@ interface MissionsViewProps {
 
 const EMPTY_JOB_FORM = {
   title: '', company: '', description: '', requirements: '',
-  location: '', salary: '', jobType: 'دوام كامل', working_hours: '', imageUrl: '', is_active: true
+  location: '', salary: '', jobType: 'دوام كامل', category: '', working_hours: '', imageUrl: '', is_active: true
 };
 
 const EMPTY_COURSE_FORM: CoursePostFormData = {
@@ -184,6 +186,10 @@ export function MissionsView({ jobs, appUser, allUsers, addToast, messages, onAp
     const company = formData.company.trim() || appUser.companyName || '';
     if (!formData.title.trim()) { addToast('يرجى إدخال المسمى الوظيفي', 'error'); return; }
     if (!company) { addToast('يرجى إدخال اسم الشركة', 'error'); return; }
+    if (!formData.category || !formData.category.trim()) {
+      addToast('يرجى تحديد قسم الوظيفة (مهنية، تقنية، إدارية...) - حقل إجباري ⚠️', 'error');
+      return;
+    }
 
     setIsPosting(true);
 
@@ -203,6 +209,7 @@ export function MissionsView({ jobs, appUser, allUsers, addToast, messages, onAp
         location: formData.location || appUser.location || 'عن بُعد',
         salary: formData.salary,
         jobType: formData.jobType,
+        category: formData.category,
         working_hours: formData.working_hours,
         employer_id: appUser.id,
         is_active: formData.is_active,
@@ -283,6 +290,7 @@ export function MissionsView({ jobs, appUser, allUsers, addToast, messages, onAp
       location: job.location || '',
       salary: job.salary || '',
       jobType: (job as any).job_type || (job as any).jobType || 'دوام كامل',
+      category: getJobCategory(job),
       working_hours: job.working_hours || '',
       imageUrl: job.image_url || '',
       is_active: job.is_active !== false,
@@ -333,9 +341,9 @@ export function MissionsView({ jobs, appUser, allUsers, addToast, messages, onAp
       const { error } = await (supabase as any).from('job_applications').update({ status }).eq('id', appId);
       if (error) throw error;
       
-      // Logic moved to interview scheduler or managed separately by user
+      // Zero notifications, zero calls — completely silent and clean status change
       fetchApplications();
-      addToast(status === 'approved' ? '✅ تم تحديث الحالة للمراجعة' : status === 'rejected' ? 'تم الرفض' : '🔄 تمت الإعادة للمراجعة');
+      addToast(status === 'approved' ? '✅ تم قبول الطلب بنجاح' : status === 'rejected' ? 'تم الرفض' : '🔄 تمت الإعادة للمراجعة');
     } catch (e: any) {
       addToast('خطأ: ' + e.message, 'error');
     }
@@ -399,7 +407,7 @@ export function MissionsView({ jobs, appUser, allUsers, addToast, messages, onAp
   }
 
   return (
-    <div className="space-y-6 pb-20 min-h-screen" dir="rtl">
+    <div className="space-y-6 pb-36 min-h-screen" dir="rtl">
       
       {/* ── Main Tab Switcher: Jobs / Courses (Visible to Admins ONLY) ── */}
       {isAdmin && (
@@ -582,7 +590,8 @@ export function MissionsView({ jobs, appUser, allUsers, addToast, messages, onAp
                 </div>
               ) : (
                 <ApplicationsListView
-                  incomingApplications={incomingApplications}
+                  incomingApplications={isJobPoster(appUser) ? incomingApplications : sentApplications}
+                  isSentView={!isJobPoster(appUser)}
                   handleApplicationAction={handleApplicationAction}
                   onDeleteApplication={handleDeleteApplication}
                   addToast={addToast}

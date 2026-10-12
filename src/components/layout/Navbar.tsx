@@ -44,7 +44,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { unreadMessagesCount, pendingRequestsCount, unreadNotificationsCount } = useAppContext();
 
   return (
-    <nav className="sticky top-0 z-[100] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800 shadow-sm transition-all duration-300">
+    <nav
+      className="sticky top-0 z-[100] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800 shadow-sm transition-all duration-300"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+    >
       {/* ─── Desktop / Tablet: 3-column grid so nav icons are truly centred ─── */}
       <div className="hidden md:grid grid-cols-3 items-center max-w-6xl mx-auto px-4 h-16">
 

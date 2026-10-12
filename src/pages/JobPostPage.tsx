@@ -16,6 +16,7 @@ const JobPostPage: React.FC = () => {
     location: '',
     salary: '',
     jobType: 'دوام كامل',
+    category: '',
     working_hours: '',
     imageUrl: '',
     is_active: true,

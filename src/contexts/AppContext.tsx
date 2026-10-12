@@ -5,6 +5,7 @@ import { authService, postService, jobService, networkService, profileService } 
 import { callService } from '../lib/services/callService';
 import { sanitizeInput } from '../lib/utils/sanitize';
 import { isUserAdmin, canUserPostAndInteract } from '../lib/utils/roleUtils';
+import { getJobCategory } from '../lib/utils/jobCategoryUtils';
 
 interface AppContextType {
   // Auth State
@@ -89,7 +90,7 @@ interface AppContextType {
   setAllUsers: React.Dispatch<React.SetStateAction<AppUser[]>>;
   setPosts: React.Dispatch<React.SetStateAction<Post[]>>;
   setMessages: React.Dispatch<React.SetStateAction<any[]>>;
-  selectRole: (role: 'seeker' | 'employer') => Promise<void>;
+  selectRole: (role: 'seeker' | 'employer' | 'freelancer', extraData?: Record<string, any>) => Promise<void>;
   handleSyncSignal: (targetUser: AppUser) => Promise<void>;
   handleAcceptSync: (notif: AppNotification) => Promise<void>;
   handleAcceptConnection: (connId: string) => Promise<void>;
@@ -109,6 +110,8 @@ interface AppContextType {
   markNotificationAsRead: (notifId: string) => Promise<void>;
   deleteReadNotifications: () => Promise<void>;
   deleteAllNotifications: () => Promise<void>;
+  userTotalPostsCount: number;
+  setUserTotalPostsCount: React.Dispatch<React.SetStateAction<number>>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -159,7 +162,22 @@ export const mapProfile = (p: any): any => {
     cvUrl: p.cv_url || null,
     cv_url: p.cv_url || null,
     // ✅ حالة التوفر للعمل — يجب تمريرها حتى لا تُعاد للـ 'none' عند الريفريش
-    open_to: p.open_to || 'none',
+    open_to: p.open_to || (p.is_available ? 'work' : 'none'),
+    isAvailable: Boolean(p.is_available || p.open_to === 'work'),
+    is_available: Boolean(p.is_available || p.open_to === 'work'),
+    displayTitle: p.display_title || p.displayTitle || '',
+    display_title: p.display_title || p.displayTitle || '',
+    freelancerType: p.freelancer_type || p.freelancerType || null,
+    freelancer_type: p.freelancer_type || p.freelancerType || null,
+    specialty: p.specialty || '',
+    homeAddress: p.home_address || p.homeAddress || '',
+    home_address: p.home_address || p.homeAddress || '',
+    serviceRequest: p.service_request || p.serviceRequest || '',
+    service_request: p.service_request || p.serviceRequest || '',
+    companyLogoUrl: p.company_logo_url || p.companyLogoUrl || null,
+    company_logo_url: p.company_logo_url || p.companyLogoUrl || null,
+    companyBio: p.company_bio || p.companyBio || '',
+    company_bio: p.company_bio || p.companyBio || '',
   };
 };
 
@@ -221,6 +239,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const c = localStorage.getItem('prolink_cached_jobs');
       return c ? JSON.parse(c) : [];
     } catch { return []; }
+  });
+
+  // 📊 إجمالي عدد منشورات المستخدم الحقيقي من قاعدة البيانات
+  const [userTotalPostsCount, setUserTotalPostsCount] = useState<number>(() => {
+    try {
+      const savedUid = localStorage.getItem('prolink_last_user_id') || '';
+      return savedUid ? Number(localStorage.getItem(`prolink_user_post_count_${savedUid}`) || 0) : 0;
+    } catch { return 0; }
   });
 
   const [allUsers, setAllUsersRaw] = useState<AppUser[]>(() => {
@@ -735,10 +761,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const selectRole = async (role: 'seeker' | 'employer') => {
+  const selectRole = async (role: 'seeker' | 'employer' | 'freelancer', extraData?: Record<string, any>) => {
     if (!user) return;
     try {
-      const { error } = await authService.selectRole(user.id, role, user.user_metadata as Record<string, unknown>);
+      const mergedUserData = {
+        ...(user.user_metadata as Record<string, unknown>),
+        ...(extraData || {})
+      };
+      const { error } = await authService.selectRole(user.id, role, mergedUserData);
       if (error) throw error;
 
       // ✅ أعِد تحميل الـ profile من قاعدة البيانات للتأكد من التحديث
@@ -749,7 +779,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // ✅ الآن نُعيِّن needsRole=false فقط بعد التحقق من وجود profile محدَّث
       setNeedsRole(false);
-      addToast(`✅ تم تفعيل حسابك كـ ${role === 'seeker' ? 'باحث عن عمل' : 'صاحب عمل'}! مرحباً بك.`);
+      const roleName = role === 'seeker' ? 'باحث عن عمل' : role === 'employer' ? 'صاحب عمل' : 'عمل حر / كشفي';
+      addToast(`✅ تم تفعيل حسابك كـ ${roleName}! مرحباً بك.`);
+
+      // ✅ إعادة تحميل البيانات لتحديث عداد المنشورات والإحصائيات فوراً
+      setTimeout(() => fetchAllData(true, user.id), 300);
     } catch (e: any) {
       addToast("خطأ في حفظ البيانات: " + e.message, "error");
     }
@@ -802,11 +836,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try { localStorage.setItem('prolink_cached_posts', JSON.stringify(sorted.slice(0, 60))); } catch {}
       }
 
+      // 📊 جلب دقيق ومباشر لعدد منشورات المستخدم الحالي من قاعدة البيانات
+      if (effectiveUserId) {
+        try {
+          const { count: exactCount } = await (supabase.from('posts') as any)
+            .select('id', { count: 'exact', head: true })
+            .eq('author_id', effectiveUserId);
+          if (exactCount !== null && exactCount !== undefined) {
+            setUserTotalPostsCount(exactCount);
+            try {
+              localStorage.setItem('prolink_last_user_id', effectiveUserId);
+              localStorage.setItem(`prolink_user_post_count_${effectiveUserId}`, String(exactCount));
+            } catch {}
+          }
+        } catch (e) {
+          console.warn('[AppContext] Failed to fetch exact posts count:', e);
+        }
+      }
+
       const jobsRes = await jobService.fetchJobs() as any;
       if (jobsRes.data) {
         const mappedJobs = (jobsRes.data as any[]).map(j => ({
           ...j,
           jobType: j.job_type || j.jobType || 'دوام كامل',
+          category: getJobCategory(j),
           working_hours: j.working_hours || j.workingHours || '',
           workingHours: j.working_hours || j.workingHours || '',
           employerName: j.company,
@@ -1232,10 +1285,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .select('group_id, groups(*)')
         .eq('user_id', appUser.id);
       
-      if (error) throw error;
-      if (data) {
+      if (!error && data) {
         const groupsList = data.map((d: any) => d.groups).filter(Boolean);
-        setMyGroups(groupsList);
+        if (groupsList.length > 0) {
+          setMyGroups(groupsList);
+          return;
+        }
+      }
+
+      // Fallback: fetch member group IDs and then load groups
+      const { data: memberRows } = await supabase
+        .from('group_members')
+        .select('group_id')
+        .eq('user_id', appUser.id);
+
+      const groupIds = (memberRows || []).map((m: any) => m.group_id).filter(Boolean);
+      if (groupIds.length > 0) {
+        const { data: directGroups } = await supabase
+          .from('groups')
+          .select('*')
+          .in('id', groupIds);
+        if (directGroups && directGroups.length > 0) {
+          setMyGroups(directGroups);
+          return;
+        }
+      }
+
+      // Also include groups created by current user
+      const { data: createdGroups } = await supabase
+        .from('groups')
+        .select('*')
+        .eq('created_by', appUser.id);
+      if (createdGroups) {
+        setMyGroups(createdGroups);
       }
     } catch (e) {
       console.error("Error fetching my groups:", e);
@@ -1451,7 +1533,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               return [...prev, mapped];
             });
             const isAdm = isUserAdmin(profile);
-            const hasValidRole = profile.role === 'seeker' || profile.role === 'employer';
+            const hasValidRole = profile.role === 'seeker' || profile.role === 'employer' || profile.role === 'freelancer';
             const hasRole = isAdm || hasValidRole;
             setNeedsRole(!hasRole);
 
@@ -1738,6 +1820,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const mappedJob = {
             ...j,
             employerName: j.company,
+            category: getJobCategory(j),
             postedAt: j.created_at ? { toDate: () => new Date(j.created_at) } : { toDate: () => new Date() }
           };
 
@@ -1940,6 +2023,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     markNotificationAsRead,
     deleteReadNotifications,
     deleteAllNotifications,
+    userTotalPostsCount,
+    setUserTotalPostsCount,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

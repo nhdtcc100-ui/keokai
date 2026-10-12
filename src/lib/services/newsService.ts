@@ -18,19 +18,18 @@ export interface NewsItem {
 
 type ProxyDef = { url: string; isJson: boolean };
 
-// Reliable, active CORS proxies for production (no 401 corsproxy.io, no 503 codetabs)
+// Reliable, active CORS proxies for production (no 401 corsproxy.io, no dead thingproxy)
 const PUBLIC_PROXIES: ProxyDef[] = [
   { url: 'https://api.allorigins.win/get?url=', isJson: true },
   { url: 'https://api.allorigins.win/raw?url=', isJson: false },
-  { url: 'https://thingproxy.freeboard.io/fetch/', isJson: false },
 ];
 
 // Fetch with short timeout
-async function fetchWithTimeout(url: string, timeoutMs = 4500): Promise<Response> {
+async function fetchWithTimeout(url: string, timeoutMs = 4500, options: RequestInit = {}): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { signal: controller.signal });
+    return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }
@@ -76,17 +75,18 @@ export const newsService = {
     if (isLocalDev && url.includes('t.me/s/')) {
       try {
         const localProxyUrl = url.replace('https://t.me', '/tg-proxy');
-        const localRes = await fetchWithTimeout(localProxyUrl, 3500);
-        if (localRes.ok) {
+        // redirect: 'manual' prevents browser from following cross-origin redirects that trigger CORS errors
+        const localRes = await fetchWithTimeout(localProxyUrl, 3500, { redirect: 'manual' });
+        if (localRes.ok && localRes.status === 200) {
           const text = await localRes.text();
-          if (text && text.length > 100) {
+          if (text && text.length > 100 && !text.includes('action="https://t.me/')) {
             localStorage.setItem(cacheKey, JSON.stringify({ data: text, timestamp: Date.now() }));
             localStorage.removeItem(failCacheKey);
             return text;
           }
         }
       } catch {
-        // Fall through to public proxies
+        // Fall through to public proxies or fallbacks
       }
     }
 

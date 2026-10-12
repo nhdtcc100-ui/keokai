@@ -5,8 +5,9 @@ import {
   Send, Loader2, ChevronDown, AlignLeft, Edit3, CheckCircle, XCircle, Clock, AlertCircle, ArrowRight, Sparkles, X
 } from 'lucide-react';
 import { validateField } from '../../../lib/security/inputValidator';
+import { JOB_CATEGORIES } from '../../../lib/utils/jobCategoryUtils';
 
-interface JobPostFormData {
+export interface JobPostFormData {
   title: string;
   company: string;
   description: string;
@@ -14,15 +15,16 @@ interface JobPostFormData {
   location: string;
   salary: string;
   jobType: string;
+  category?: string;
   working_hours: string;
   imageUrl: string;
   is_active: boolean;
 }
 
-interface JobPostFormProps {
+export interface JobPostFormProps {
   show?: boolean;
-  formData: JobPostFormData;
-  setFormData: (data: JobPostFormData) => void;
+  formData: any;
+  setFormData: any;
   onSubmit: () => void;
   isPosting: boolean;
   onClose: () => void;
@@ -57,11 +59,13 @@ export const JobPostForm: React.FC<JobPostFormProps> = ({
   const isValid = (formData.title || '').trim().length > 2 && 
                   (formData.company || '').trim().length > 1 && 
                   (formData.description || '').trim().length > 10 &&
+                  Boolean((formData.category || '').trim()) &&
                   !hasAnyError;
 
   const completionScore = [
     (formData.title || '').trim().length > 2,
     (formData.company || '').trim().length > 1,
+    Boolean((formData.category || '').trim()),
     (formData.description || '').trim().length > 10,
     (formData.requirements || '').trim().length > 5,
     (formData.location || '').trim().length > 1,
@@ -118,13 +122,13 @@ export const JobPostForm: React.FC<JobPostFormProps> = ({
         <div className="mt-6 pt-5 border-t border-white/15 relative z-10">
           <div className="flex justify-between items-center mb-2">
             <span className="text-[10px] font-black text-blue-200 uppercase tracking-widest">نسبة اكتمال تفاصيل الإعلان</span>
-            <span className="text-xs font-black text-white">{Math.round((completionScore / 7) * 100)}%</span>
+            <span className="text-xs font-black text-white">{Math.round((completionScore / 8) * 100)}%</span>
           </div>
           <div className="h-2 bg-white/20 rounded-full overflow-hidden">
             <motion.div
               className="h-full bg-emerald-400 rounded-full shadow-sm"
               initial={{ width: 0 }}
-              animate={{ width: `${(completionScore / 7) * 100}%` }}
+              animate={{ width: `${(completionScore / 8) * 100}%` }}
               transition={{ duration: 0.4 }}
             />
           </div>
@@ -180,6 +184,66 @@ export const JobPostForm: React.FC<JobPostFormProps> = ({
                 </div>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Section: Job Category / قسم وتصنيف الوظيفة (إجباري) */}
+        <div className="space-y-3 p-4 md:p-5 bg-blue-50/40 dark:bg-blue-950/20 rounded-2xl md:rounded-3xl border border-blue-100/80 dark:border-blue-900/40">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2">
+              <Tag size={16} className="text-blue-600" />
+              قسم وتصنيف الوظيفة <span className="text-red-500 font-bold">* (إجباري)</span>
+            </h3>
+            {formData.category ? (
+              <span className="text-[11px] font-black text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-200 dark:border-emerald-800 flex items-center gap-1 shadow-sm">
+                <CheckCircle size={12} />
+                تم تحديد: {formData.category}
+              </span>
+            ) : (
+              <span className="text-[11px] font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-3 py-1 rounded-full border border-amber-200 dark:border-amber-800 flex items-center gap-1 animate-pulse">
+                <AlertCircle size={12} />
+                يرجى اختيار القسم للمتابعة
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">
+            اختر القسم الذي تنتمي إليه الوظيفة لتظهر في تصنيفات وفلاتر الصفحة الرئيسية بدقة:
+          </p>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 pt-1">
+            {JOB_CATEGORIES.map(cat => {
+              const isSelected = formData.category === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, category: cat.id })}
+                  className={`p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer border text-center active:scale-95 ${
+                    isSelected
+                      ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white border-blue-600 shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40'
+                      : 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-800 shadow-sm'
+                  }`}
+                >
+                  <div
+                    className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+                      isSelected
+                        ? 'bg-white/20 text-white shadow-inner'
+                        : 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                    }`}
+                  >
+                    <cat.Icon size={19} />
+                  </div>
+                  <span className="text-xs font-black">{cat.label}</span>
+                  <span
+                    className={`text-[9px] font-medium leading-tight ${
+                      isSelected ? 'text-blue-100' : 'text-slate-400 dark:text-slate-500'
+                    }`}
+                  >
+                    {cat.desc}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -339,7 +403,11 @@ export const JobPostForm: React.FC<JobPostFormProps> = ({
         {!isValid && (
           <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 rounded-2xl flex items-center gap-2 text-amber-700 dark:text-amber-400 text-xs font-bold">
             <AlertCircle size={15} className="shrink-0 text-amber-500" />
-            <span>يرجى تعبئة المسمى الوظيفي، اسم المنشأة، والوصف لإتاحة النشر.</span>
+            <span>
+              {!formData.category 
+                ? 'يرجى تحديد قسم الوظيفة (مهنية، تقنية، إدارية...) - حقل إجباري لنشر الوظيفة.'
+                : 'يرجى تعبئة المسمى الوظيفي، اسم المنشأة، والوصف لإتاحة النشر.'}
+            </span>
           </div>
         )}
       </div>

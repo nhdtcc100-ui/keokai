@@ -318,11 +318,17 @@ export function CoursesView({ appUser, allUsers = [], addToast, onPostCourse, on
                             disabled={!!reg || !isActive} 
                             className={`px-5 py-2.5 rounded-xl text-[10px] font-black transition-all shadow-sm active:scale-95 ${
                               reg 
-                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
+                                ? (reg.status === 'approved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
+                                   reg.status === 'rejected' ? 'bg-red-50 text-red-600 border border-red-200' :
+                                   'bg-amber-50 text-amber-600 border border-amber-200')
                                 : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-100 dark:hover:shadow-none'
                             }`}
                           >
-                            {reg ? 'تم التسجيل' : 'سجل الآن'}
+                            {reg ? (
+                              reg.status === 'approved' ? 'تم قبولك بالدورة 🎉' :
+                              reg.status === 'rejected' ? 'تم رفض طلبك 😔' :
+                              'طلبك قيد المراجعة ⏳'
+                            ) : 'سجل الآن'}
                           </button>
                         </div>
                       </div>

@@ -21,9 +21,8 @@ interface ProfileHeaderProps {
 }
 
 const OPEN_TO_OPTIONS = [
-  { value: 'work', label: 'متاح للعمل', icon: Briefcase, color: 'bg-emerald-500', ring: 'ring-emerald-400', badge: 'bg-emerald-500 text-white' },
-  { value: 'hiring', label: 'أبحث عن موهبة', icon: Search, color: 'bg-blue-500', ring: 'ring-blue-400', badge: 'bg-blue-500 text-white' },
-  { value: 'none', label: 'غير متاح حالياً', icon: Minus, color: 'bg-slate-300', ring: 'ring-slate-200', badge: 'hidden' },
+  { value: 'work', label: 'متاح للعمل 🟢', icon: Briefcase, color: 'bg-emerald-500', ring: 'ring-emerald-400', badge: 'bg-emerald-500 text-white' },
+  { value: 'none', label: 'غير متاح للعمل ⚪', icon: Minus, color: 'bg-slate-400', ring: 'ring-slate-300', badge: 'hidden' },
 ];
 
 export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
@@ -40,9 +39,14 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   onCallClick,
   showCallButton = false,
 }) => {
-  const openToStatus = formData.open_to || 'none';
+  const currentRole = formData?.role || profile?.role || 'seeker';
+  const isEmployer = currentRole === 'employer';
+  const isFreelancer = currentRole === 'freelancer';
+  const isSeeker = currentRole === 'seeker';
+
+  const openToStatus = formData.open_to === 'work' || formData.is_available ? 'work' : 'none';
   const activeOption = OPEN_TO_OPTIONS.find(o => o.value === openToStatus);
-  const isAvailable = openToStatus !== 'none';
+  const isAvailable = openToStatus === 'work';
   const isPro = profile.is_pro || profile.isPro;
 
   return (
@@ -50,6 +54,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
       {/* Cover Image */}
       <div className="h-24 md:h-36 bg-slate-200 dark:bg-slate-800 relative group overflow-hidden">
         <img
+          key={formData.coverUrl}
           src={formData.coverUrl || 'https://images.unsplash.com/photo-1579546753319-4d9904917482?w=1200&h=400&fit=crop'}
           className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-700"
           alt="Cover"
@@ -60,7 +65,12 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           <label className="absolute top-3 right-3 p-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-xl cursor-pointer hover:bg-white dark:hover:bg-slate-800 transition-all shadow-md flex items-center gap-1.5 group/btn border border-white/20 dark:border-slate-700">
             <Camera size={13} className="text-[#0a66c2] dark:text-blue-400" />
             <span className="text-[9px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest hidden group-hover/btn:block">تغيير</span>
-            <input type="file" className="hidden" accept="image/*" onChange={handleCoverChange} />
+            <input
+              type="file"
+              className="hidden"
+              accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
+              onChange={handleCoverChange}
+            />
           </label>
         )}
       </div>
@@ -71,6 +81,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           <div className="relative group/avatar">
             <div className="w-20 h-20 md:w-28 md:h-28 rounded-3xl border-4 border-white dark:border-slate-900 overflow-hidden shadow-lg bg-white dark:bg-slate-800">
               <img
+                key={formData.avatar}
                 src={formData.avatar}
                 className="w-full h-full object-cover"
                 alt="Avatar"
@@ -79,7 +90,12 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             {isMe && (
               <label className="absolute bottom-1 left-1 p-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-xl cursor-pointer hover:bg-white dark:hover:bg-slate-700 shadow-md transition-all border border-slate-100 dark:border-slate-700">
                 <Camera size={11} className="text-[#0a66c2] dark:text-blue-400" />
-                <input type="file" className="hidden" accept="image/*" onChange={handleAvatarChange} />
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
+                  onChange={handleAvatarChange}
+                />
               </label>
             )}
 
@@ -127,21 +143,29 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
 
               {/* Account Role Badge */}
               <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border shadow-sm ${
-                (formData?.role === 'employer' || profile?.role === 'employer')
+                isEmployer
                   ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-800'
-                  : 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-800'
+                  : isFreelancer
+                    ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800'
+                    : 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-800'
               }`}>
-                {(formData?.role === 'employer' || profile?.role === 'employer') ? '💼 صاحب عمل' : '🎯 باحث عن عمل'}
+                {isEmployer ? '💼 صاحب عمل' : isFreelancer ? '⚡ عمل حر / كشفي' : '🎯 باحث عن عمل'}
               </span>
             </div>
 
-            {/* Job title / Industry */}
+            {/* Job title / Industry / Specialty */}
             <p className="text-sm text-slate-600 dark:text-slate-300 font-bold leading-none">
-              {formData.industry
-                ? formData.industry
-                : profile.role === 'employer'
-                  ? 'رائد أعمال ومالك أعمال'
-                  : 'خبير تقني ومتخصص تطوير'}
+              {(formData.display_title || profile.display_title)
+                ? (formData.display_title || profile.display_title)
+                : (formData.specialty || profile.specialty)
+                  ? (formData.specialty || profile.specialty)
+                  : (formData.industry || formData.title)
+                    ? (formData.industry || formData.title)
+                    : isEmployer
+                      ? 'رائد أعمال ومالك مؤسسة'
+                      : isFreelancer
+                        ? 'فني ميداني وكشف حر'
+                        : 'خبير تقني ومتخصص تطوير'}
               {formData.companyName && (
                 <span className="text-[#0a66c2] dark:text-blue-400"> · {formData.companyName}</span>
               )}
@@ -219,15 +243,18 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           </div>
         </div>
 
-        {/* Open-to Toggle (only for me) */}
-        {isMe && (
+        {/* Open-to Toggle (only for seekers / field freelancers, NOT employers) */}
+        {isMe && !isEmployer && (
           <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800">
-            <p className="text-[9px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-2">حالة التوفر</p>
+            <p className="text-[9px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-2">حالة التوفر للعمل</p>
             <div className="flex gap-2 flex-wrap">
               {OPEN_TO_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
-                  onClick={() => handleFieldChange('open_to', opt.value)}
+                  onClick={() => {
+                    handleFieldChange('open_to', opt.value);
+                    handleFieldChange('is_available', opt.value === 'work');
+                  }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all border-2 ${
                     openToStatus === opt.value
                       ? `${opt.color} text-white border-transparent shadow-md`

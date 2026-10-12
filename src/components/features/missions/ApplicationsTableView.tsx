@@ -164,6 +164,7 @@ function exportToExcel(apps: JobApplication[], label: string, addToast: (msg: st
 
 interface ApplicationsListViewProps {
   incomingApplications: JobApplication[];
+  isSentView?: boolean;
   handleApplicationAction: (appId: string, jobTitle: string, status: 'approved' | 'rejected' | 'pending') => Promise<void>;
   onDeleteApplication: (appId: string) => Promise<void>;
   addToast: (msg: string, type?: any) => void;
@@ -213,6 +214,7 @@ export function ApplicationsListView(props: ApplicationsListViewProps) {
 
 function ApplicationsListViewContent({
   incomingApplications = [],
+  isSentView = false,
   handleApplicationAction,
   onDeleteApplication,
   addToast,
@@ -360,21 +362,13 @@ function ApplicationsListViewContent({
         }]);
       }
 
-      // 💬 2. WhatsApp Message
-      const waMessage = `مرحباً ${name}،%0A%0Aتمت مراجعة سيرتك الذاتية ويسعدنا إخبارك بأنه تم ترشيحك لمقابلة عمل لوظيفة "${jobTitle}".%0A%0A📆 موعد المقابلة: ${interviewDate}%0A⏰ الساعة: ${interviewTime}%0A%0Aيرجى تأكيد الحضور، بالتوفيق!`;
-
-      if (phone) {
-        const cleanPhone = phone.replace(/[^0-9+]/g, '');
-        window.open(`https://wa.me/${cleanPhone}?text=${waMessage}`, '_blank');
-      }
-
-      // 🚀 3. Update status in Database
+      // 🚀 Update status in Database silently and professionally
       await handleApplicationAction(selectedApp.id, jobTitle, 'approved');
 
       setShowScheduler(false);
-      addToast('✅ تم تحديد موعد المقابلة وإرسال الدعوة بنجاح!');
+      addToast('✅ تم قبول الطلب وتحديد موعد المقابلة بنجاح');
     } catch (err: any) {
-      addToast('فشل في إرسال الدعوة: ' + err.message, 'error');
+      addToast('فشل في حفظ موعد المقابلة: ' + err.message, 'error');
     }
   };
 
@@ -422,32 +416,34 @@ function ApplicationsListViewContent({
         </div>
 
         {/* ── BAR 2 (Lower Horizontal Bar): Excel Export Buttons ── */}
-        <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-700/60">
-          <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">تصدير وتقارير الإكسل:</p>
-          <div className="flex gap-2 items-center flex-wrap w-full">
-            <button
-              onClick={() => exportToExcel(incomingApplications, 'الكل', addToast, allUsers)}
-              disabled={incomingApplications.length === 0}
-              className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-2xl text-[11px] font-black border border-blue-100 dark:border-blue-800/50 hover:bg-blue-100 transition-all disabled:opacity-50 shadow-sm"
-            >
-              <Download size={14} /> إكسل للكل
-            </button>
-            <button
-              onClick={() => exportToExcel(incomingApplications.filter(a => a.status === 'approved'), 'المقبولين', addToast, allUsers)}
-              disabled={incomingApplications.filter(a => a.status === 'approved').length === 0}
-              className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl text-[11px] font-black border border-emerald-100 dark:border-emerald-800/50 hover:bg-emerald-100 transition-all disabled:opacity-50 shadow-sm"
-            >
-              <Download size={14} /> المقبولين
-            </button>
-            <button
-              onClick={() => exportToExcel(incomingApplications.filter(a => a.status === 'rejected'), 'المرفوضين', addToast, allUsers)}
-              disabled={incomingApplications.filter(a => a.status === 'rejected').length === 0}
-              className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-2xl text-[11px] font-black border border-red-100 dark:border-red-800/50 hover:bg-red-100 transition-all disabled:opacity-50 shadow-sm"
-            >
-              <Download size={14} /> المرفوضين
-            </button>
+        {!isSentView && (
+          <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+            <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">تصدير وتقارير الإكسل:</p>
+            <div className="flex gap-2 items-center flex-wrap w-full">
+              <button
+                onClick={() => exportToExcel(incomingApplications, 'الكل', addToast, allUsers)}
+                disabled={incomingApplications.length === 0}
+                className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-2xl text-[11px] font-black border border-blue-100 dark:border-blue-800/50 hover:bg-blue-100 transition-all disabled:opacity-50 shadow-sm"
+              >
+                <Download size={14} /> إكسل للكل
+              </button>
+              <button
+                onClick={() => exportToExcel(incomingApplications.filter(a => a.status === 'approved'), 'المقبولين', addToast, allUsers)}
+                disabled={incomingApplications.filter(a => a.status === 'approved').length === 0}
+                className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl text-[11px] font-black border border-emerald-100 dark:border-emerald-800/50 hover:bg-emerald-100 transition-all disabled:opacity-50 shadow-sm"
+              >
+                <Download size={14} /> المقبولين
+              </button>
+              <button
+                onClick={() => exportToExcel(incomingApplications.filter(a => a.status === 'rejected'), 'المرفوضين', addToast, allUsers)}
+                disabled={incomingApplications.filter(a => a.status === 'rejected').length === 0}
+                className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-2xl text-[11px] font-black border border-red-100 dark:border-red-800/50 hover:bg-red-100 transition-all disabled:opacity-50 shadow-sm"
+              >
+                <Download size={14} /> المرفوضين
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Search Bar */}
         <div className="relative pt-1">
@@ -516,142 +512,203 @@ function ApplicationsListViewContent({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="text-sm font-black text-slate-800 dark:text-white truncate">{app.applicant_data?.name}</h3>
+                        <h3 className="text-sm font-black text-slate-800 dark:text-white truncate">
+                          {isSentView ? (app.jobTitle || app.jobs?.title || 'وظيفة مهنية') : (app.applicant_data?.name || (app as any).applicantName || 'متقدم')}
+                        </h3>
                         <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mb-1 flex items-center gap-1">
-                          <Briefcase size={10} /> {app.jobTitle || app.jobs?.title || app.job?.title}
+                          <Briefcase size={10} /> {isSentView ? ((app as any).company || (app.jobs as any)?.company || 'الشركة المعلنة') : (app.jobTitle || app.jobs?.title || app.job?.title)}
                         </p>
-                        {/* ⭐ Star Rating */}
-                        <div className="flex items-center gap-0.5 mb-2">
-                          {[1, 2, 3, 4, 5].map(star => (
-                            <button
-                              key={star}
-                              onClick={(e) => { e.stopPropagation(); setRating(app.id, star); }}
-                              className="p-0.5 transition-transform hover:scale-125 active:scale-95"
-                            >
-                              <Star
-                                size={12}
-                                className={star <= (ratings[app.id] || 0) ? 'text-amber-400 fill-amber-400' : 'text-slate-200 dark:text-slate-600'}
-                              />
-                            </button>
-                          ))}
-                          {ratings[app.id] > 0 && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setShowNotesFor(showNotesFor === app.id ? null : app.id); }}
-                              className={`mr-1 p-0.5 rounded transition-all ${notes[app.id] ? 'text-blue-500' : 'text-slate-300 hover:text-blue-400'}`}
-                              title="ملاحظة خاصة"
-                            >
-                              <StickyNote size={11} />
-                            </button>
-                          )}
-                        </div>
+
+                        {/* Status badge for sent applications */}
+                        {isSentView && (
+                          <div className="mt-1.5 mb-1 flex items-center gap-1.5 flex-wrap">
+                            {app.status === 'approved' && (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-xl text-[10px] font-black">
+                                <CheckCircle size={12} /> تم قبول طلبك بنجاح 🎉
+                              </span>
+                            )}
+                            {app.status === 'rejected' && (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300 rounded-xl text-[10px] font-black">
+                                <XCircle size={12} /> تم الاعتذار عن الطلب 😔
+                              </span>
+                            )}
+                            {(!app.status || app.status === 'pending') && (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 rounded-xl text-[10px] font-black">
+                                <Clock size={12} /> قيد المراجعة والانتظار ⏳
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* ⭐ Star Rating - Employer view only */}
+                        {!isSentView && (
+                          <div className="flex items-center gap-0.5 mb-2">
+                            {[1, 2, 3, 4, 5].map(star => (
+                              <button
+                                key={star}
+                                onClick={(e) => { e.stopPropagation(); setRating(app.id, star); }}
+                                className="p-0.5 transition-transform hover:scale-125 active:scale-95"
+                              >
+                                <Star
+                                  size={12}
+                                  className={star <= (ratings[app.id] || 0) ? 'text-amber-400 fill-amber-400' : 'text-slate-200 dark:text-slate-600'}
+                                />
+                              </button>
+                            ))}
+                            {ratings[app.id] > 0 && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setShowNotesFor(showNotesFor === app.id ? null : app.id); }}
+                                className={`mr-1 p-0.5 rounded transition-all ${notes[app.id] ? 'text-blue-500' : 'text-slate-300 hover:text-blue-400'}`}
+                                title="ملاحظة خاصة"
+                              >
+                                <StickyNote size={11} />
+                              </button>
+                            )}
+                          </div>
+                        )}
                         {/* Notes input */}
-                        <AnimatePresence>
-                          {showNotesFor === app.id && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: 'auto' }}
-                              exit={{ opacity: 0, height: 0 }}
-                              onClick={(e) => e.stopPropagation()}
-                              className="mb-2 overflow-hidden"
-                            >
-                              <textarea
-                                autoFocus
-                                defaultValue={notes[app.id] || ''}
-                                onBlur={(e) => saveNote(app.id, e.target.value)}
-                                placeholder="أضف ملاحظة خاصة..."
-                                className="w-full text-[10px] font-bold bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-100 resize-none"
-                                rows={2}
-                              />
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+                        {!isSentView && (
+                          <AnimatePresence>
+                            {showNotesFor === app.id && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="mb-2 overflow-hidden"
+                              >
+                                <textarea
+                                  autoFocus
+                                  defaultValue={notes[app.id] || ''}
+                                  onBlur={(e) => saveNote(app.id, e.target.value)}
+                                  placeholder="أضف ملاحظة خاصة..."
+                                  className="w-full text-[10px] font-bold bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-100 resize-none"
+                                  rows={2}
+                                />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        )}
                       </div>
                       <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold whitespace-nowrap">
                         {new Date(app.created_at).toLocaleDateString('ar-EG')}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 mt-3">
-                      <button
-                        onClick={() => {
-                          const idx = filteredApps.findIndex(a => a.id === app.id);
-                          setSelectedAppIndex(idx >= 0 ? idx : 0);
-                          setShowScheduler(false);
-                        }}
-                        className="flex-[2] py-2.5 bg-slate-900 dark:bg-slate-800 text-white rounded-xl text-[10px] font-black hover:bg-slate-800 dark:hover:bg-slate-700 transition-all flex items-center justify-center gap-2 shadow-sm border border-transparent dark:border-slate-700 active:scale-95"
-                      >
-                        <User size={12} /> التفاصيل
-                      </button>
-
-                      {/* Quick Actions */}
-                      <div className="flex gap-1.5">
-                        {app.status === 'approved' ? (
-                          <motion.button
-                            whileHover={{ scale: 1.1, y: -2 }}
-                            whileTap={{ scale: 0.9 }}
+                    {isSentView ? (
+                      <div className="flex items-center gap-2 mt-3">
+                        {app.status === 'approved' && (
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              const targetUser = allUsers.find(u => u.id === app.applicant_id);
-                              if (targetUser) {
-                                setSelectedChat(targetUser);
+                              const targetEmployer = allUsers.find(u => u.id === (app as any).employer_id);
+                              if (targetEmployer) {
+                                setSelectedChat(targetEmployer);
                                 setActiveTab('messages');
                               } else {
-                                addToast('لم يتم العثور على حساب المتقدم', 'error');
+                                addToast('يمكنك التواصل مع الشركة عبر صفحة الوظيفة أو الرسائل', 'info');
                               }
                             }}
-                            className="w-9 h-9 flex items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-blue-900/40 transition-all"
-                            title="دردشة فورية"
+                            className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-[10px] font-black flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 active:scale-95"
                           >
-                            <MessageSquare size={16} />
-                          </motion.button>
-                        ) : (
+                            <MessageSquare size={13} /> محادثة صاحب العمل
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm('هل أنت متأكد من سحب هذا الطلب؟')) {
+                              onDeleteApplication(app.id);
+                            }
+                          }}
+                          className="py-2.5 px-4 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 rounded-xl text-[10px] font-black hover:bg-red-100 transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                        >
+                          <Trash2 size={13} /> سحب الطلب
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 mt-3">
+                        <button
+                          onClick={() => {
+                            const idx = filteredApps.findIndex(a => a.id === app.id);
+                            setSelectedAppIndex(idx >= 0 ? idx : 0);
+                            setShowScheduler(false);
+                          }}
+                          className="flex-[2] py-2.5 bg-slate-900 dark:bg-slate-800 text-white rounded-xl text-[10px] font-black hover:bg-slate-800 dark:hover:bg-slate-700 transition-all flex items-center justify-center gap-2 shadow-sm border border-transparent dark:border-slate-700 active:scale-95"
+                        >
+                          <User size={12} /> التفاصيل
+                        </button>
+
+                        {/* Quick Actions */}
+                        <div className="flex gap-1.5">
+                          {app.status === 'approved' ? (
+                            <motion.button
+                              whileHover={{ scale: 1.1, y: -2 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const targetUser = allUsers.find(u => u.id === app.applicant_id);
+                                if (targetUser) {
+                                  setSelectedChat(targetUser);
+                                  setActiveTab('messages');
+                                } else {
+                                  addToast('لم يتم العثور على حساب المتقدم', 'error');
+                                }
+                              }}
+                              className="w-9 h-9 flex items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-blue-900/40 transition-all"
+                              title="دردشة فورية"
+                            >
+                              <MessageSquare size={16} />
+                            </motion.button>
+                          ) : (
+                            <motion.button
+                              whileHover={{ scale: 1.1, y: -2 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleApplicationAction(app.id, app.job?.title || app.jobs?.title || app.jobTitle || 'وظيفة', 'approved');
+                              }}
+                              className="w-9 h-9 flex items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/30 hover:bg-emerald-500 hover:text-white transition-all"
+                              title="قبول الطلب"
+                            >
+                              <CheckCircle size={16} />
+                            </motion.button>
+                          )}
+
                           <motion.button
                             whileHover={{ scale: 1.1, y: -2 }}
                             whileTap={{ scale: 0.9 }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleApplicationAction(app.id, app.job?.title || app.jobs?.title || app.jobTitle || 'وظيفة', 'approved');
+                              if (app.status !== 'rejected') {
+                                handleApplicationAction(app.id, app.job?.title || app.jobs?.title || app.jobTitle || 'وظيفة', 'rejected');
+                              }
                             }}
-                            className="w-9 h-9 flex items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/30 hover:bg-emerald-500 hover:text-white transition-all"
-                            title="قبول الطلب"
+                            className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${app.status === 'rejected'
+                                ? 'bg-red-500 text-white shadow-lg shadow-red-200 dark:shadow-red-900/40 cursor-default'
+                                : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 border border-red-100 dark:border-red-800/30 hover:bg-red-500 hover:text-white hover:shadow-lg hover:shadow-red-200 dark:hover:shadow-red-900/40'
+                              }`}
+                            title="رفض الطلب"
                           >
-                            <CheckCircle size={16} />
+                            <XCircle size={16} />
                           </motion.button>
-                        )}
 
-                        <motion.button
-                          whileHover={{ scale: 1.1, y: -2 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (app.status !== 'rejected') {
-                              handleApplicationAction(app.id, app.job?.title || app.jobs?.title || app.jobTitle || 'وظيفة', 'rejected');
-                            }
-                          }}
-                          className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${app.status === 'rejected'
-                              ? 'bg-red-500 text-white shadow-lg shadow-red-200 dark:shadow-red-900/40 cursor-default'
-                              : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 border border-red-100 dark:border-red-800/30 hover:bg-red-500 hover:text-white hover:shadow-lg hover:shadow-red-200 dark:hover:shadow-red-900/40'
-                            }`}
-                          title="رفض الطلب"
-                        >
-                          <XCircle size={16} />
-                        </motion.button>
-
-                        <motion.button
-                          whileHover={{ scale: 1.1, y: -2 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setAppForAI(app);
-                            setShowAIEval(true);
-                          }}
-                          className="w-9 h-9 flex items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400 border border-purple-100 dark:border-purple-800/30 hover:bg-purple-600 hover:text-white transition-all shadow-sm"
-                          title="تحليل الذكاء الاصطناعي"
-                        >
-                          <Sparkles size={16} />
-                        </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.1, y: -2 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAppForAI(app);
+                              setShowAIEval(true);
+                            }}
+                            className="w-9 h-9 flex items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400 border border-purple-100 dark:border-purple-800/30 hover:bg-purple-600 hover:text-white transition-all shadow-sm"
+                            title="تحليل الذكاء الاصطناعي"
+                          >
+                            <Sparkles size={16} />
+                          </motion.button>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </GlassCard>

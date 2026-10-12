@@ -7,6 +7,7 @@ import { withMutex } from './concurrencyMutex';
 import { idempotencyEngine, withIdempotency } from './idempotencyEngine';
 import { withCollisionRetry } from './collisionHandler';
 import { generateUUID } from '../security/distributedId';
+import { getJobCategory, encodeCategoryInDescription } from '../utils/jobCategoryUtils';
 
 // ✅ Whitelist of allowed job types to prevent injection
 const ALLOWED_JOB_TYPES = ['دوام كامل', 'دوام جزئي', 'عن بُعد', 'عقد', 'تدريب', 'مؤقت'];
@@ -15,11 +16,19 @@ const ALLOWED_STATUSES = ['pending', 'active', 'closed'];
 export const jobService = {
   async fetchJobs(limit = 50) {
     // ✅ Parameterized query via Supabase SDK — safe from SQL injection
-    return supabase
+    const res = await supabase
       .from('jobs')
       .select('id, title, company, location, salary, job_type, working_hours, image_url, description, requirements, created_at, employer_id, is_active')
       .order('created_at', { ascending: false })
       .limit(Math.min(limit, 100)); // ✅ Enforce max limit
+
+    if (res.data) {
+      res.data = (res.data as any[]).map((j: any) => ({
+        ...j,
+        category: getJobCategory(j)
+      }));
+    }
+    return res;
   },
 
   async postJob(data: any) {
@@ -69,12 +78,15 @@ export const jobService = {
 
           return withCollisionRetry(async (_attempt, freshId) => {
             const workingHours = sanitizeInput(data.working_hours || '', 100);
+            const finalDescription = data.category
+              ? encodeCategoryInDescription(description, data.category)
+              : description;
 
             const { data: res, error } = await (supabase.from('jobs') as any).insert([{
               id:            data.id || freshId,
               title,
               company,
-              description,
+              description:   finalDescription,
               location:      location || 'عن بُعد',
               salary,
               requirements:  requirements || null,
@@ -108,12 +120,16 @@ export const jobService = {
   async updateJob(jobId: string, employerId: string, data: any) {
     // ✅ Sanitize all inputs before update
     const jobType = ALLOWED_JOB_TYPES.includes(data.jobType) ? data.jobType : 'دوام كامل';
+    const rawDesc = sanitizeInput(data.description || '', 5000);
+    const finalDescription = data.category
+      ? encodeCategoryInDescription(rawDesc, data.category)
+      : rawDesc;
 
     // 🔒 Ownership guard: only the poster can update — enforced via employer_id filter
     const mainResult = await (supabase.from('jobs') as any).update({
       title:        sanitizeInput(data.title || '', 200),
       company:      sanitizeInput(data.company || '', 200),
-      description:  sanitizeInput(data.description || '', 5000),
+      description:  finalDescription,
       location:     sanitizeInput(data.location || '', 200) || 'عن بُعد',
       salary:       sanitizeInput(data.salary || '', 100),
       requirements: sanitizeInput(data.requirements || '', 3000) || null,
@@ -244,12 +260,22 @@ export const jobService = {
     const val = validateFile(file, 'document');
     if (!val.valid) return { data: null, error: new Error(val.error) };
 
-    const magic = await verifyFileMimeType(file, 'application/pdf');
+    // ✅ Accept PDF and Word documents
+    const allowedCvTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    const fileMime = file.type || 'application/pdf';
+    const mimeToVerify = allowedCvTypes.includes(fileMime) ? fileMime : 'application/pdf';
+
+    const magic = await verifyFileMimeType(file, mimeToVerify);
     if (!magic.valid) return { data: null, error: new Error(magic.error) };
 
     try {
-      const fileExt = 'pdf';
-      const fileName = `cv-${userId}-${generateUUID()}.${fileExt}`;
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+      const safeExt = ['pdf', 'doc', 'docx'].includes(fileExt) ? fileExt : 'pdf';
+      const fileName = `cv-${userId}-${generateUUID()}.${safeExt}`;
       
       const { error } = await supabase.storage
         .from('applications')
@@ -271,6 +297,7 @@ export const jobService = {
       return { data: null, error: err };
     }
   },
+
 
   async sendSystemMessage(senderId: string, receiverId: string, content: string) {
     // ✅ Sanitize content before sending system messages

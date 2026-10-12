@@ -73,7 +73,18 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // 🔄 Guaranteed Hybrid Polling Heartbeat (Every 3s)
+    // Synchronizes messages reliably even if WebSockets are interrupted or blocked
+    const pollInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchMessages();
+      }
+    }, 3000);
+
+    return () => { 
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
   }, [group.id, appUser?.id]);
 
   useEffect(() => {
@@ -367,10 +378,9 @@ export const GroupDetailView: React.FC<GroupDetailViewProps> = ({
         addToast(`خطأ في الحفظ: ${error.message}`, 'error');
         throw error;
       }
-      
-      // We don't call fetchMessages() here manually anymore 
-      // because the real-time listener will handle it, 
-      // and our fetchMessages now preserves optimistic state.
+
+      // Synchronize immediately from DB while preserving optimistic state
+      fetchMessages();
     } catch (e: any) {
       console.error("DEBUG: sendMessage exception:", e);
       if (!e.message?.includes('خطأ في الحفظ')) {

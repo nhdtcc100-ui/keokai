@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   User, Briefcase, CheckCircle2, ArrowLeft, Sparkles, LogOut,
-  Search, Star, FileText, Globe, Shield, AlertCircle, Send,
-  ChevronRight, X, Loader2, Lock
+  Search, Star, FileText, Globe, Shield, AlertCircle,
+  ChevronRight, X, Loader2, Lock, Wrench, Zap, Phone, MapPin
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
 
 interface RoleSelectionViewProps {
-  selectRole: (role: 'seeker' | 'employer') => void;
+  selectRole: (role: 'seeker' | 'employer' | 'freelancer', extraData?: Record<string, any>) => void;
   appUser?: { name?: string; avatar?: string; email?: string } | null;
 }
 
@@ -29,6 +29,15 @@ const EMPLOYER_FEATURES = [
   { icon: Globe,     label: 'ملف شركة احترافي',             allowed: true },
   { icon: Search,    label: 'تصفح الوظائف كمتقدّم',        allowed: false },
   { icon: Shield,    label: 'أدوات ERP وإدارة الموظفين',   allowed: false },
+];
+
+const FREELANCER_FEATURES = [
+  { icon: Wrench,    label: 'خدمات ميدانية وكشف فوري',      allowed: true },
+  { icon: Phone,     label: 'تواصل مباشر بالرقم والموقع',  allowed: true },
+  { icon: Star,      label: 'عرض الاختصاص والأعمال السابقة', allowed: true },
+  { icon: Zap,       label: 'استقبال طلبات كشف وصيانة',     allowed: true },
+  { icon: Briefcase, label: 'نشر وظائف مؤسسية رسمية',       allowed: false },
+  { icon: Shield,    label: 'أنظمة الشركات والـ ERP',       allowed: false },
 ];
 
 /* ─── بطاقة الصلاحيات ──────────────────────────────────────────── */
@@ -58,12 +67,36 @@ const ConfirmStep = ({
   onBack,
   isSubmitting,
 }: {
-  role: 'seeker' | 'employer';
-  onConfirm: () => void;
+  role: 'seeker' | 'employer' | 'freelancer';
+  onConfirm: (extraData?: Record<string, any>) => void;
   onBack: () => void;
   isSubmitting: boolean;
 }) => {
   const isSeeker = role === 'seeker';
+  const isEmployer = role === 'employer';
+  const isFreelancer = role === 'freelancer';
+
+  const [freelancerType, setFreelancerType] = useState<'technician' | 'client'>('technician');
+  const [specialty, setSpecialty] = useState('');
+  const [phone, setPhone] = useState('');
+  const [homeAddress, setHomeAddress] = useState('');
+  const [serviceRequest, setServiceRequest] = useState('');
+
+  const handleFinish = () => {
+    if (isFreelancer) {
+      onConfirm({
+        freelancer_type: freelancerType,
+        specialty: specialty.trim(),
+        phone: phone.trim(),
+        home_address: homeAddress.trim(),
+        service_request: serviceRequest.trim(),
+        display_title: freelancerType === 'technician' && specialty ? specialty : undefined
+      });
+    } else {
+      onConfirm();
+    }
+  };
+
   return (
     <motion.div
       key="confirm"
@@ -71,25 +104,108 @@ const ConfirmStep = ({
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.94, y: -24 }}
       transition={{ type: 'spring', stiffness: 300, damping: 26 }}
-      className="flex flex-col items-center text-center"
+      className="flex flex-col items-center text-center w-full"
     >
       {/* أيقونة */}
       <div className={`w-24 h-24 rounded-[2rem] flex items-center justify-center mb-6 shadow-2xl ${
         isSeeker
           ? 'bg-gradient-to-br from-blue-500 to-violet-600 shadow-blue-500/30'
-          : 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/30'
+          : isEmployer
+            ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/30'
+            : 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-500/30'
       }`}>
-        {isSeeker ? <User size={40} className="text-white" /> : <Briefcase size={40} className="text-white" />}
+        {isSeeker && <User size={40} className="text-white" />}
+        {isEmployer && <Briefcase size={40} className="text-white" />}
+        {isFreelancer && <Wrench size={40} className="text-white" />}
       </div>
 
       <h2 className="text-2xl font-black text-white mb-2">
-        {isSeeker ? 'باحث عن عمل' : 'صاحب عمل / شركة'}
+        {isSeeker ? 'باحث عن عمل' : isEmployer ? 'صاحب عمل / شركة' : 'عمل حر / كشفي'}
       </h2>
-      <p className="text-slate-400 text-sm font-bold mb-8 max-w-xs leading-relaxed">
+      <p className="text-slate-400 text-sm font-bold mb-6 max-w-sm leading-relaxed">
         {isSeeker
           ? 'ستُفعَّل صلاحيات البحث والتقديم على الوظائف وبناء ملفك المهني.'
-          : 'ستُفعَّل صلاحيات نشر الوظائف، استقبال المتقدمين، وإدارة عمليات التوظيف.'}
+          : isEmployer
+            ? 'ستُفعَّل صلاحيات نشر الوظائف، استقبال المتقدمين، وإدارة عمليات التوظيف.'
+            : 'ستُفعَّل منظومة العمل الحر والكشف الميداني والتواصل المباشر مع العملاء.'}
       </p>
+
+      {/* حقول الفريلانسر الإضافية إن وُجدت */}
+      {isFreelancer && (
+        <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 mb-6 text-right space-y-4">
+          <p className="text-xs font-black text-amber-400 uppercase tracking-widest">تحديد نوع العمل الميداني:</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setFreelancerType('technician')}
+              className={`p-3 rounded-xl border text-center transition-all ${
+                freelancerType === 'technician'
+                  ? 'border-amber-500 bg-amber-500/20 text-white font-black'
+                  : 'border-white/10 text-slate-400'
+              }`}
+            >
+              🔧 فني مقدّم خدمة
+            </button>
+            <button
+              type="button"
+              onClick={() => setFreelancerType('client')}
+              className={`p-3 rounded-xl border text-center transition-all ${
+                freelancerType === 'client'
+                  ? 'border-amber-500 bg-amber-500/20 text-white font-black'
+                  : 'border-white/10 text-slate-400'
+              }`}
+            >
+              🏠 طالب خدمة (زبون)
+            </button>
+          </div>
+
+          {freelancerType === 'technician' ? (
+            <div className="space-y-3 pt-2">
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 block mb-1">الاختصاص المهني</label>
+                <input
+                  value={specialty}
+                  onChange={e => setSpecialty(e.target.value)}
+                  placeholder="مثال: كهربائي منازل، تبريد وتكييف، سيراميك..."
+                  className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 block mb-1">رقم الهاتف للتواصل المباشر</label>
+                <input
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  placeholder="07XXXXXXXXX"
+                  dir="ltr"
+                  className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 pt-2">
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 block mb-1">عنوان البيت / المنطقة</label>
+                <input
+                  value={homeAddress}
+                  onChange={e => setHomeAddress(e.target.value)}
+                  placeholder="مثال: بغداد — الكرادة — محلة 903"
+                  className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 block mb-1">شرح المشكلة أو الخدمة المطلوبة</label>
+                <textarea
+                  value={serviceRequest}
+                  onChange={e => setServiceRequest(e.target.value)}
+                  placeholder="مثال: عطل في مكيف الهواء، تسريب ماء في المطبخ..."
+                  rows={2}
+                  className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500 resize-none"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* تحذير */}
       <div className="w-full flex items-start gap-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 mb-8 text-right">
@@ -102,12 +218,14 @@ const ConfirmStep = ({
       {/* أزرار */}
       <div className="w-full space-y-3">
         <button
-          onClick={onConfirm}
+          onClick={handleFinish}
           disabled={isSubmitting}
           className={`w-full py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-xl transition-all active:scale-95 ${
             isSeeker
               ? 'bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white shadow-blue-500/25'
-              : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/25'
+              : isEmployer
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/25'
+                : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-amber-500/25'
           }`}
         >
           {isSubmitting ? (
@@ -130,7 +248,7 @@ const ConfirmStep = ({
 
 /* ─── المكوّن الرئيسي ───────────────────────────────────────────── */
 export const RoleSelectionView: React.FC<RoleSelectionViewProps> = ({ selectRole, appUser }) => {
-  const [selectedRole, setSelectedRole] = useState<'seeker' | 'employer' | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'seeker' | 'employer' | 'freelancer' | null>(null);
   const [step, setStep] = useState<'select' | 'confirm'>('select');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [particles, setParticles] = useState<{ x: number; y: number; size: number; delay: number }[]>([]);
@@ -147,11 +265,11 @@ export const RoleSelectionView: React.FC<RoleSelectionViewProps> = ({ selectRole
     );
   }, []);
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (extraData?: Record<string, any>) => {
     if (!selectedRole || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      await selectRole(selectedRole);
+      await selectRole(selectedRole, extraData);
     } finally {
       setIsSubmitting(false);
     }
@@ -164,6 +282,8 @@ export const RoleSelectionView: React.FC<RoleSelectionViewProps> = ({ selectRole
   };
 
   const isSeeker = selectedRole === 'seeker';
+  const isEmployer = selectedRole === 'employer';
+  const isFreelancer = selectedRole === 'freelancer';
 
   return (
     <div
@@ -184,7 +304,7 @@ export const RoleSelectionView: React.FC<RoleSelectionViewProps> = ({ selectRole
 
       {/* ── بقع ضوء ── */}
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-amber-600/10 rounded-full blur-[120px] pointer-events-none" />
 
       {/* ══════════════ LAYOUT ══════════════ */}
       <div className="relative z-10 w-full flex flex-col lg:flex-row">
@@ -195,13 +315,13 @@ export const RoleSelectionView: React.FC<RoleSelectionViewProps> = ({ selectRole
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-10 w-full max-w-xl"
+            className="text-center mb-8 w-full max-w-xl"
           >
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/15 border border-blue-500/20 text-blue-400 text-xs font-black uppercase tracking-widest mb-5">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/15 border border-blue-500/20 text-blue-400 text-xs font-black uppercase tracking-widest mb-4">
               <Sparkles size={13} />
               خطوة أخيرة
             </div>
-            <h1 className="text-3xl sm:text-4xl font-black text-white leading-tight mb-3">
+            <h1 className="text-3xl sm:text-4xl font-black text-white leading-tight mb-2">
               {appUser?.name ? `مرحباً ${appUser.name.split(' ')[0]} 👋` : 'مرحباً بك في ProLink 👋'}
             </h1>
             <p className="text-slate-400 text-sm font-bold leading-relaxed">
@@ -220,14 +340,14 @@ export const RoleSelectionView: React.FC<RoleSelectionViewProps> = ({ selectRole
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ type: 'spring', stiffness: 280, damping: 24 }}
                 >
-                  {/* بطاقتا الدور */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                  {/* بطاقات الدور الثلاث */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-6">
                     {/* باحث عن عمل */}
                     <motion.button
                       whileHover={{ scale: 1.025, y: -4 }}
                       whileTap={{ scale: 0.975 }}
                       onClick={() => setSelectedRole('seeker')}
-                      className={`relative p-6 rounded-[2rem] border-2 text-right transition-all cursor-pointer overflow-hidden flex flex-col gap-4 ${
+                      className={`relative p-5 rounded-[1.75rem] border-2 text-right transition-all cursor-pointer overflow-hidden flex flex-col gap-3 ${
                         selectedRole === 'seeker'
                           ? 'border-blue-500 bg-blue-600/15 shadow-2xl shadow-blue-500/20 ring-4 ring-blue-500/10'
                           : 'border-white/10 bg-white/5 hover:border-blue-400/40 hover:bg-blue-600/5'
@@ -239,20 +359,20 @@ export const RoleSelectionView: React.FC<RoleSelectionViewProps> = ({ selectRole
                           animate={{ opacity: 1, scale: 1 }}
                           className="absolute top-3 left-3 bg-blue-500 text-white rounded-full p-1"
                         >
-                          <CheckCircle2 size={14} />
+                          <CheckCircle2 size={13} />
                         </motion.div>
                       )}
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-all ${
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all ${
                         selectedRole === 'seeker'
-                          ? 'bg-gradient-to-br from-blue-500 to-violet-600 text-white shadow-blue-500/30 scale-110'
+                          ? 'bg-gradient-to-br from-blue-500 to-violet-600 text-white shadow-blue-500/30 scale-105'
                           : 'bg-blue-500/10 text-blue-400'
                       }`}>
-                        <User size={26} />
+                        <User size={22} />
                       </div>
                       <div>
-                        <h3 className="font-black text-lg text-white mb-1">باحث عن عمل</h3>
-                        <p className="text-xs text-slate-400 font-bold leading-relaxed">
-                          استكشف الفرص المهنية وقدّم سيرتك الذاتية بسهولة
+                        <h3 className="font-black text-sm text-white mb-0.5">باحث عن عمل</h3>
+                        <p className="text-[11px] text-slate-400 font-bold leading-relaxed">
+                          استكشف الوظائف وقدّم بالـ CV
                         </p>
                       </div>
                     </motion.button>
@@ -262,7 +382,7 @@ export const RoleSelectionView: React.FC<RoleSelectionViewProps> = ({ selectRole
                       whileHover={{ scale: 1.025, y: -4 }}
                       whileTap={{ scale: 0.975 }}
                       onClick={() => setSelectedRole('employer')}
-                      className={`relative p-6 rounded-[2rem] border-2 text-right transition-all cursor-pointer overflow-hidden flex flex-col gap-4 ${
+                      className={`relative p-5 rounded-[1.75rem] border-2 text-right transition-all cursor-pointer overflow-hidden flex flex-col gap-3 ${
                         selectedRole === 'employer'
                           ? 'border-emerald-500 bg-emerald-600/15 shadow-2xl shadow-emerald-500/20 ring-4 ring-emerald-500/10'
                           : 'border-white/10 bg-white/5 hover:border-emerald-400/40 hover:bg-emerald-600/5'
@@ -274,20 +394,55 @@ export const RoleSelectionView: React.FC<RoleSelectionViewProps> = ({ selectRole
                           animate={{ opacity: 1, scale: 1 }}
                           className="absolute top-3 left-3 bg-emerald-500 text-white rounded-full p-1"
                         >
-                          <CheckCircle2 size={14} />
+                          <CheckCircle2 size={13} />
                         </motion.div>
                       )}
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-all ${
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all ${
                         selectedRole === 'employer'
-                          ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-500/30 scale-110'
+                          ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-500/30 scale-105'
                           : 'bg-emerald-500/10 text-emerald-400'
                       }`}>
-                        <Briefcase size={26} />
+                        <Briefcase size={22} />
                       </div>
                       <div>
-                        <h3 className="font-black text-lg text-white mb-1">صاحب عمل / شركة</h3>
-                        <p className="text-xs text-slate-400 font-bold leading-relaxed">
-                          انشر الوظائف واستقطب أفضل الكفاءات لفريقك
+                        <h3 className="font-black text-sm text-white mb-0.5">صاحب عمل</h3>
+                        <p className="text-[11px] text-slate-400 font-bold leading-relaxed">
+                          انشر الوظائف واستقطب الكوادر
+                        </p>
+                      </div>
+                    </motion.button>
+
+                    {/* عمل حر / كشفي */}
+                    <motion.button
+                      whileHover={{ scale: 1.025, y: -4 }}
+                      whileTap={{ scale: 0.975 }}
+                      onClick={() => setSelectedRole('freelancer')}
+                      className={`relative p-5 rounded-[1.75rem] border-2 text-right transition-all cursor-pointer overflow-hidden flex flex-col gap-3 ${
+                        selectedRole === 'freelancer'
+                          ? 'border-amber-500 bg-amber-600/15 shadow-2xl shadow-amber-500/20 ring-4 ring-amber-500/10'
+                          : 'border-white/10 bg-white/5 hover:border-amber-400/40 hover:bg-amber-600/5'
+                      }`}
+                    >
+                      {selectedRole === 'freelancer' && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="absolute top-3 left-3 bg-amber-500 text-white rounded-full p-1"
+                        >
+                          <CheckCircle2 size={13} />
+                        </motion.div>
+                      )}
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all ${
+                        selectedRole === 'freelancer'
+                          ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-amber-500/30 scale-105'
+                          : 'bg-amber-500/10 text-amber-400'
+                      }`}>
+                        <Wrench size={22} />
+                      </div>
+                      <div>
+                        <h3 className="font-black text-sm text-white mb-0.5">عمل حر / كشفي</h3>
+                        <p className="text-[11px] text-slate-400 font-bold leading-relaxed">
+                          فني مهني أو كشف ميداني مباشر
                         </p>
                       </div>
                     </motion.button>
@@ -302,7 +457,9 @@ export const RoleSelectionView: React.FC<RoleSelectionViewProps> = ({ selectRole
                       selectedRole
                         ? isSeeker
                           ? 'bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-blue-500/20 hover:from-blue-500 hover:to-violet-500'
-                          : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-500/20 hover:from-emerald-500 hover:to-teal-500'
+                          : isEmployer
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-500/20 hover:from-emerald-500 hover:to-teal-500'
+                            : 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-amber-500/20 hover:from-amber-500 hover:to-orange-500'
                         : 'bg-white/5 text-slate-600 cursor-not-allowed'
                     }`}
                   >
@@ -347,22 +504,24 @@ export const RoleSelectionView: React.FC<RoleSelectionViewProps> = ({ selectRole
               className={`hidden lg:flex flex-col justify-center w-80 xl:w-96 p-10 border-r border-white/5 ${
                 isSeeker
                   ? 'bg-gradient-to-b from-blue-600/8 to-violet-600/5'
-                  : 'bg-gradient-to-b from-emerald-600/8 to-teal-600/5'
+                  : isEmployer
+                    ? 'bg-gradient-to-b from-emerald-600/8 to-teal-600/5'
+                    : 'bg-gradient-to-b from-amber-600/8 to-orange-600/5'
               }`}
             >
               <div className="mb-6">
                 <p className={`text-xs font-black uppercase tracking-widest mb-1 ${
-                  isSeeker ? 'text-blue-400' : 'text-emerald-400'
+                  isSeeker ? 'text-blue-400' : isEmployer ? 'text-emerald-400' : 'text-amber-400'
                 }`}>
                   صلاحيات الحساب
                 </p>
                 <h3 className="text-xl font-black text-white">
-                  {isSeeker ? 'باحث عن عمل' : 'صاحب عمل'}
+                  {isSeeker ? 'باحث عن عمل' : isEmployer ? 'صاحب عمل' : 'عمل حر / كشفي'}
                 </h3>
               </div>
 
               <div className="space-y-1.5">
-                {(isSeeker ? SEEKER_FEATURES : EMPLOYER_FEATURES).map((f, i) => (
+                {(isSeeker ? SEEKER_FEATURES : isEmployer ? EMPLOYER_FEATURES : FREELANCER_FEATURES).map((f, i) => (
                   <motion.div
                     key={f.label}
                     initial={{ opacity: 0, x: 20 }}

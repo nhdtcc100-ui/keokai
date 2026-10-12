@@ -7,6 +7,7 @@ import { safeTimeAgo } from '../../../lib/utils/formatDate';
 import { BilingualSmartText } from '../../../lib/utils/bilingualText';
 import { JobCandidatesPanel } from './JobCandidatesPanel';
 import { useAppContext } from '../../../contexts/AppContext';
+import { getJobCategory, cleanJobDescription } from '../../../lib/utils/jobCategoryUtils';
 
 interface JobDetailModalProps {
   job: Job | null;
@@ -26,7 +27,8 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, onClose, on
   const [applicationText, setApplicationText] = useState('');
   const isActive = job?.is_active !== false;
 
-  const isPublisher = !!(appUser && (appUser.isAdmin || appUser.id === job?.employer_id || appUser.id === (job as any)?.employerId || appUser.id === (job as any)?.authorId || appUser.id === (job as any)?.author_id));
+  // Only block the actual job publisher from applying — admins CAN apply
+  const isPublisher = !!(appUser && !appUser.isAdmin && (appUser.id === job?.employer_id || appUser.id === (job as any)?.employerId || appUser.id === (job as any)?.authorId || appUser.id === (job as any)?.author_id));
 
   if (!job) return null;
 
@@ -99,14 +101,19 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, onClose, on
         <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 bg-slate-50/50 dark:bg-slate-900/60 custom-scrollbar">
 
           {/* Meta Stats Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 flex flex-col gap-1 shadow-sm">
               <MapPin size={14} className="text-blue-500" />
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">الموقع</span>
               <span className="text-[11px] font-black text-slate-800 dark:text-white truncate">{job.location || 'عن بُعد'}</span>
             </div>
             <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 flex flex-col gap-1 shadow-sm">
-              <Tag size={14} className="text-indigo-500" />
+              <Tag size={14} className="text-purple-500" />
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">القسم</span>
+              <span className="text-[11px] font-black text-purple-600 dark:text-purple-400 truncate">{getJobCategory(job)}</span>
+            </div>
+            <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700 flex flex-col gap-1 shadow-sm">
+              <Briefcase size={14} className="text-indigo-500" />
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">النوع</span>
               <span className="text-[11px] font-black text-slate-800 dark:text-white truncate">{job.jobType || 'دوام كامل'}</span>
             </div>
@@ -129,7 +136,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, onClose, on
               <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">التفاصيل المهنية للوظيفة</h3>
             </div>
             <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm leading-relaxed">
-              <BilingualSmartText text={job.description || 'لا يوجد وصف مفصّل.'} className="space-y-3" />
+              <BilingualSmartText text={cleanJobDescription(job.description) || 'لا يوجد وصف مفصّل.'} className="space-y-3" />
             </div>
           </div>
         </div>

@@ -66,33 +66,44 @@ export const imageService = {
             img.onload = () => {
               try {
                 const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
+                let width = img.naturalWidth  || img.width  || 800;
+                let height = img.naturalHeight || img.height || 600;
 
-                const MAX_WIDTH = 1200;
-                const MAX_HEIGHT = 1200;
+                const MAX_DIM = 1200;
 
-                if (width > height) {
-                  if (width > MAX_WIDTH) {
-                    height *= MAX_WIDTH / width;
-                    width = MAX_WIDTH;
+                if (width >= height) {
+                  if (width > MAX_DIM) {
+                    height = Math.round((height * MAX_DIM) / width);
+                    width = MAX_DIM;
                   }
                 } else {
-                  if (height > MAX_HEIGHT) {
-                    width *= MAX_HEIGHT / height;
-                    height = MAX_HEIGHT;
+                  if (height > MAX_DIM) {
+                    width = Math.round((width * MAX_DIM) / height);
+                    height = MAX_DIM;
                   }
+                }
+
+                // Guard against invalid dimensions (can happen on some Android browsers)
+                if (!width || !height || width < 1 || height < 1) {
+                  resolve(file);
+                  return;
                 }
 
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
-                ctx?.drawImage(img, 0, 0, width, height);
+                if (!ctx) { resolve(file); return; }
+                ctx.drawImage(img, 0, 0, width, height);
 
                 canvas.toBlob((blob) => {
-                  if (blob) resolve(blob);
-                  else resolve(file);
-                }, 'image/jpeg', 0.8);
+                  // toBlob can return null on restricted Android WebViews
+                  if (blob && blob.size > 0) {
+                    resolve(blob);
+                  } else {
+                    console.warn('[imageService] canvas.toBlob returned null/empty on mobile — using original file');
+                    resolve(file);
+                  }
+                }, 'image/jpeg', 0.82);
               } catch {
                 resolve(file);
               }
@@ -109,57 +120,115 @@ export const imageService = {
     });
   },
 
+
   async uploadFile(file: File | Blob, userId: string, bucket = 'profiles'): Promise<string> {
     try {
-      const fileExt = file instanceof File ? file.name.split('.').pop() : 'jpg';
-      const fileName = `${userId}/${generateUUID()}.${fileExt}`;
-      const contentType = file instanceof File ? file.type : 'image/jpeg';
+      // Always use a fresh UUID so upsert never hits a stale cached path
+      const uuid = generateUUID();
+      const fileExt = file instanceof File
+        ? (file.name.split('.').pop()?.toLowerCase() || 'jpg')
+        : 'jpg';
+      // Sanitize extension — only allow safe image/doc extensions
+      const safeExt = /^(jpg|jpeg|png|webp|gif|heic|heif|bmp|pdf)$/.test(fileExt) ? fileExt : 'jpg';
+      const fileName = `${userId}/${uuid}.${safeExt}`;
+      const contentType = file instanceof File
+        ? (file.type || 'image/jpeg')
+        : (file.type || 'image/jpeg');
 
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(fileName, file, { contentType, upsert: true });
+      // Verify user session is active before attempting upload
+      const { data: sessionData } = await supabase.auth.getSession();
+      const hasSession = !!sessionData?.session?.access_token;
+      console.log(`[imageService] Upload attempt | bucket: ${bucket} | hasSession: ${hasSession} | file size: ${file.size} bytes`);
 
-      if (!uploadError) {
-        const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(fileName);
-        if (publicData?.publicUrl) return publicData.publicUrl;
+      if (!hasSession) {
+        console.warn('[imageService] No active Supabase session — storage upload will fail RLS policy. Falling back to base64.');
+        throw new Error('No active session');
+      }
+
+      // Actual existing buckets in Supabase (in priority order)
+      const candidateBuckets = [bucket, 'profiles', 'applications', 'posts', 'job-images']
+        .filter((b, idx, arr) => arr.indexOf(b) === idx);
+
+      for (const b of candidateBuckets) {
+        try {
+          const { error: uploadError } = await supabase.storage
+            .from(b)
+            .upload(fileName, file, {
+              contentType,
+              upsert: true,
+              // '1' = 1 second cache — effectively no-cache while being a valid value
+              cacheControl: '1',
+            });
+
+          if (!uploadError) {
+            const { data: publicData } = supabase.storage.from(b).getPublicUrl(fileName);
+            if (publicData?.publicUrl) {
+              // Append cache-buster so browser always fetches fresh image
+              const separator = publicData.publicUrl.includes('?') ? '&' : '?';
+              const freshUrl = `${publicData.publicUrl}${separator}t=${uuid}`;
+              console.log(`✅ [imageService] Successfully uploaded file to bucket '${b}':`, freshUrl);
+              return freshUrl;
+            }
+          } else {
+            console.warn(`⚠️ [imageService] Bucket '${b}' upload failed:`, uploadError.message || JSON.stringify(uploadError));
+          }
+        } catch (bErr) {
+          console.warn(`⚠️ [imageService] Exception trying bucket '${b}':`, bErr);
+        }
       }
     } catch (e) {
-      console.warn('[imageService] Storage upload error, falling back to base64 data URL:', e);
+      console.warn('[imageService] Storage upload error, falling back to base64:', e);
     }
 
-    // Fallback: convert to optimized compact data URL so image is always saved and never lost
-    try {
-      if (file.type && file.type.startsWith('image/')) {
-        const canvas = document.createElement('canvas');
-        const img = new Image();
-        const src = URL.createObjectURL(file);
-        await new Promise((res, rej) => {
-          img.onload = res;
-          img.onerror = rej;
-          img.src = src;
-        });
-        const maxDim = 800;
-        let w = img.width;
-        let h = img.height;
-        if (w > h && w > maxDim) { h = Math.round((h * maxDim) / w); w = maxDim; }
-        else if (h > maxDim) { w = Math.round((w * maxDim) / h); h = maxDim; }
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, w, h);
-        URL.revokeObjectURL(src);
-        return canvas.toDataURL('image/jpeg', 0.7);
-      }
-    } catch (_) {}
 
+    // Fallback: convert to compact base64 data URL using FileReader
+    // (avoids URL.createObjectURL which fails on restricted Android WebViews)
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') resolve(reader.result);
-        else reject(new Error('Failed to encode file'));
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+      try {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') {
+            // If image: downscale via canvas before storing to keep DB payload small
+            if (file.type?.startsWith('image/') && reader.result.startsWith('data:image/')) {
+              try {
+                const img = new Image();
+                img.onload = () => {
+                  try {
+                    const maxDim = 400;
+                    let w = img.naturalWidth || img.width || maxDim;
+                    let h = img.naturalHeight || img.height || maxDim;
+                    if (w > h && w > maxDim) { h = Math.round((h * maxDim) / w); w = maxDim; }
+                    else if (h > maxDim) { w = Math.round((w * maxDim) / h); h = maxDim; }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                      ctx.drawImage(img, 0, 0, w, h);
+                      const compact = canvas.toDataURL('image/jpeg', 0.65);
+                      console.log(`ℹ️ [imageService] Compact base64 fallback: ${compact.length} chars`);
+                      resolve(compact);
+                      return;
+                    }
+                  } catch { /* fall through to raw */ }
+                  resolve(reader.result as string);
+                };
+                img.onerror = () => resolve(reader.result as string);
+                img.src = reader.result as string;
+              } catch {
+                resolve(reader.result as string);
+              }
+            } else {
+              resolve(reader.result);
+            }
+          } else {
+            reject(new Error('Failed to encode file'));
+          }
+        };
+        reader.onerror = () => reject(new Error('FileReader error'));
+        reader.readAsDataURL(file);
+      } catch (e) {
+        reject(e);
+      }
     });
   },
 
@@ -169,9 +238,19 @@ export const imageService = {
     if (!validation.valid) throw new Error(validation.error);
 
     if (file.type.startsWith('image/')) {
-      const compressed = await this.compressImage(file);
-      return this.uploadFile(compressed, userId, bucket);
+      try {
+        // Compress first, then upload
+        const compressed = await this.compressImage(file);
+        // On mobile, compressImage may silently return the original File
+        // when canvas is unavailable — that is fine, we still upload it
+        return await this.uploadFile(compressed, userId, bucket);
+      } catch (compressError) {
+        // Canvas compression failed (common on Android WebView) — upload raw file directly
+        console.warn('[imageService] Canvas compression failed on mobile, uploading raw file:', compressError);
+        return await this.uploadFile(file, userId, bucket);
+      }
     } else {
+      // PDF / DOC — upload directly without processing
       return this.uploadFile(file, userId, bucket);
     }
   },

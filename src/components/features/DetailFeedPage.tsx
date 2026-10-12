@@ -11,6 +11,7 @@ import { safeTimeAgo } from '../../lib/utils/formatDate';
 import { BilingualSmartText } from '../../lib/utils/bilingualText';
 import { JobCandidatesPanel } from './missions/JobCandidatesPanel';
 import { useAppContext } from '../../contexts/AppContext';
+import { getJobCategory, cleanJobDescription } from '../../lib/utils/jobCategoryUtils';
 
 // ── Smart text renderer: detects phone numbers, URLs, emails, salaries, locations, and working hours ──
 const SmartText: React.FC<{ text: string; className?: string }> = ({ text, className }) => {
@@ -389,6 +390,7 @@ export const DetailFeedPage: React.FC<DetailFeedPageProps> = ({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 px-4 md:px-6 pt-5">
                     {[
                       { icon: <MapPin size={13} className="text-blue-500 dark:text-blue-400" />, label: 'الموقع', value: item.location || 'عن بُعد' },
+                      { icon: <Briefcase size={13} className="text-purple-500 dark:text-purple-400" />, label: 'القسم', value: getJobCategory(item) },
                       { icon: <Tag size={13} className="text-indigo-500 dark:text-indigo-400" />, label: 'نوع العمل', value: item.jobType || item.job_type || 'دوام كامل' },
                       { icon: <DollarSign size={13} className="text-emerald-500 dark:text-emerald-400" />, label: 'الراتب', value: item.salary || 'غير محدد' },
                       { icon: <Clock size={13} className="text-amber-500 dark:text-amber-400" />, label: 'ساعات العمل', value: item.working_hours || item.workingHours || 'دوام كامل' },
@@ -408,7 +410,7 @@ export const DetailFeedPage: React.FC<DetailFeedPageProps> = ({
                       تفاصيل الوظيفة ومتطلباتها
                     </h3>
                     <div className="bg-slate-50 dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 text-sm leading-relaxed shadow-sm">
-                      <BilingualSmartText text={item.description || 'لا يوجد وصف مفصل متاح.'} className="space-y-2.5" />
+                      <BilingualSmartText text={cleanJobDescription(item.description) || 'لا يوجد وصف مفصل متاح.'} className="space-y-2.5" />
                     </div>
                   </div>
 
@@ -427,7 +429,7 @@ export const DetailFeedPage: React.FC<DetailFeedPageProps> = ({
                   {/* Apply & Navigation Buttons — padded above MobileNav */}
                   <div className="px-4 md:px-6 pt-5 space-y-2.5" style={{ paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 80px), 96px)' }}>
                     {(() => {
-                      const isPublisher = !!(appUser && (appUser.isAdmin || appUser.id === item.employerId || appUser.id === item.employer_id || appUser.id === item.authorId || appUser.id === item.author_id));
+                      const isPublisher = !!(appUser && !appUser.isAdmin && (appUser.id === item.employerId || appUser.id === item.employer_id || appUser.id === item.authorId || appUser.id === item.author_id));
 
                       return (
                         <button

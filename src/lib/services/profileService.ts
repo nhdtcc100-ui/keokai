@@ -300,7 +300,22 @@ export const profileService = {
     if (updates.cvUrl !== undefined)      dbUpdates.cv_url        = updates.cvUrl;
     if (updates.cv_url !== undefined)     dbUpdates.cv_url        = updates.cv_url;
     if (updates.open_to !== undefined)    dbUpdates.open_to       = updates.open_to;  // ← حالة "متاح للعمل"
-    if (updates.role !== undefined)       dbUpdates.role          = updates.role;     // ← نوع الحساب (seeker / employer)
+    if (updates.is_available !== undefined) dbUpdates.is_available = updates.is_available;
+    if (updates.isAvailable !== undefined)  dbUpdates.is_available = updates.isAvailable;
+    if (updates.display_title !== undefined) dbUpdates.display_title = updates.display_title;
+    if (updates.displayTitle !== undefined)  dbUpdates.display_title = updates.displayTitle;
+    if (updates.freelancer_type !== undefined) dbUpdates.freelancer_type = updates.freelancer_type;
+    if (updates.freelancerType !== undefined)  dbUpdates.freelancer_type = updates.freelancerType;
+    if (updates.specialty !== undefined)     dbUpdates.specialty     = updates.specialty;
+    if (updates.home_address !== undefined)  dbUpdates.home_address  = updates.home_address;
+    if (updates.homeAddress !== undefined)   dbUpdates.home_address  = updates.homeAddress;
+    if (updates.service_request !== undefined) dbUpdates.service_request = updates.service_request;
+    if (updates.serviceRequest !== undefined)  dbUpdates.service_request = updates.serviceRequest;
+    if (updates.company_logo_url !== undefined) dbUpdates.company_logo_url = updates.company_logo_url;
+    if (updates.companyLogoUrl !== undefined)   dbUpdates.company_logo_url = updates.companyLogoUrl;
+    if (updates.company_bio !== undefined)   dbUpdates.company_bio   = updates.company_bio;
+    if (updates.companyBio !== undefined)    dbUpdates.company_bio   = updates.companyBio;
+    if (updates.role !== undefined)       dbUpdates.role          = updates.role;     // ← نوع الحساب (seeker / employer / freelancer)
     if (updates.current_peer_id !== undefined) dbUpdates.current_peer_id = updates.current_peer_id;
     // 🛡️ WAF Real-Time Threat Inspection before writing to database
     for (const [key, val] of Object.entries(dbUpdates)) {
@@ -376,8 +391,8 @@ export const profileService = {
     userId: string,
     userName: string,
     userAvatar: string,
-    currentRole: 'seeker' | 'employer',
-    requestedRole: 'seeker' | 'employer',
+    currentRole: 'seeker' | 'employer' | 'freelancer',
+    requestedRole: 'seeker' | 'employer' | 'freelancer',
     reason: string
   ) {
     try {

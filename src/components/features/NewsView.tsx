@@ -104,7 +104,11 @@ const fetchFeed = async (feed: { url: string; region: NewsItem['region']; label:
   } catch (_) {}
 
   // 3. Fallback through resilient proxies
-  for (const proxy of PROXIES.slice(1)) {
+  const proxies = [
+    (u: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    (u: string) => `https://thingproxy.freeboard.io/fetch/${u}`,
+  ];
+  for (const proxy of proxies) {
     try {
       const res = await fetch(proxy(feed.url), { signal: AbortSignal.timeout(4000) });
       if (!res.ok) continue;
@@ -568,7 +572,7 @@ export function NewsView({ appUser }: { appUser: any }) {
   const rest = filtered.slice(1);
 
   return (
-    <div className="space-y-5 pb-28 text-slate-800 dark:text-slate-100" dir="rtl">
+    <div className="space-y-5 pb-36 text-slate-800 dark:text-slate-100" dir="rtl">
       {/* ── Top Header & Filters Card — Dark themed in dark mode ── */}
       <div className="p-5 sm:p-6 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

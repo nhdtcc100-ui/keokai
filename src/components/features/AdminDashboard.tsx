@@ -178,7 +178,7 @@ export function AdminDashboard({ reports, onClose, addToast }: AdminDashboardPro
         console.warn("support_messages query note:", msgsErr);
       }
 
-      const supportMsgs = (msgs || []).filter((m: any) => adminIds.has(m.sender_id) || adminIds.has(m.receiver_id));
+      const supportMsgs = msgs || [];
       const threadsMap = new Map<string, any>();
 
       supportMsgs.forEach((m: any) => {

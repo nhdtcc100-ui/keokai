@@ -9,3 +9,4 @@ export * from './CoursePostForm';
 export * from './CourseDetailModal';
 export * from './ApplyCourseModal';
 export * from './AnalyticsDashboard';
+export * from './JobCategoriesCard';

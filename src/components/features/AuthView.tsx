@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Phone, Lock, User, ArrowRight, ShieldCheck, Sparkles, CheckCircle, AlertCircle } from "lucide-react";
+import { Mail, Phone, Lock, User, ArrowRight, ShieldCheck, Sparkles, CheckCircle, AlertCircle, Wrench, Building2, MapPin, FileQuestion } from "lucide-react";
 import { GlassCard } from "../ui";
 import { authService, unifiedAuth } from "../../lib/services/authService";
 import { detectIdentifierType, checkPasswordStrength, sanitizeInput, validateName } from "../../lib/security/inputValidator";
+import { supabase } from "../../lib/supabase";
 
 interface AuthViewProps {
   onSuccess?: () => void;
@@ -19,7 +20,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
   const [nameError, setNameError] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [selectedRole, setSelectedRole] = useState<"seeker" | "employer">("seeker");
+  const [selectedRole, setSelectedRole] = useState<"seeker" | "employer" | "freelancer">("seeker");
+
+  // حقول إضافية للمنظومة الجديدة
+  const [location, setLocation] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [freelancerType, setFreelancerType] = useState<"technician" | "client">("technician");
+  const [specialty, setSpecialty] = useState("");
+  const [homeAddress, setHomeAddress] = useState("");
+  const [serviceRequest, setServiceRequest] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,12 +108,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
     }
 
     if (mode === "signup") {
-      if (!name || name.trim().length < 2) {
-        setError("يرجى إدخال الاسم الكامل (حرفين على الأقل)");
+      const primaryName = selectedRole === 'employer' ? (name || companyName) : name;
+      if (!primaryName || primaryName.trim().length < 2) {
+        setError("يرجى إدخال الاسم الصريح (حرفين على الأقل)");
         return;
       }
       // 🛡️ Final security name check before submission
-      const nameCheck = validateName(name, undefined, '/auth/signup');
+      const nameCheck = validateName(primaryName, undefined, '/auth/signup');
       if (!nameCheck.valid) {
         setError(nameCheck.error ?? 'الاسم يحتوي على رموز محظورة');
         return;
@@ -125,12 +136,44 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
     setLoading(true);
 
     try {
-      const cleanName = sanitizeInput(name, 100);
-      const res: any = await unifiedAuth(identifier, password, cleanName, mode, selectedRole);
+      let finalName = sanitizeInput(name, 100);
+      let displayTitle = '';
+
+      if (selectedRole === 'seeker') {
+        displayTitle = finalName;
+      } else if (selectedRole === 'employer') {
+        finalName = name || companyName;
+      } else if (selectedRole === 'freelancer') {
+        if (freelancerType === 'technician' && specialty.trim()) {
+          displayTitle = `${finalName} (${specialty.trim()})`;
+        } else {
+          displayTitle = finalName;
+        }
+      }
+
+      const res: any = await unifiedAuth(identifier, password, finalName, mode, selectedRole);
 
       if (res?.error) {
         setError(res.error.message || "حدث خطأ أثناء الاتصال، يرجى المحاولة لاحقاً");
       } else {
+        // إذا كان هناك حساب جديد ومسجل الجلسة، حفظ الحقول الإضافية فوراً
+        const registeredUserId = res?.data?.user?.id;
+        if (registeredUserId) {
+          try {
+            await supabase.from('profiles').update({
+              location: sanitizeInput(location, 100) || null,
+              company_name: selectedRole === 'employer' ? sanitizeInput(companyName, 100) : null,
+              display_title: displayTitle || null,
+              specialty: selectedRole === 'freelancer' ? sanitizeInput(specialty, 100) : null,
+              freelancer_type: selectedRole === 'freelancer' ? freelancerType : null,
+              home_address: (selectedRole === 'freelancer' && freelancerType === 'client') ? sanitizeInput(homeAddress, 200) : null,
+              service_request: (selectedRole === 'freelancer' && freelancerType === 'client') ? sanitizeInput(serviceRequest, 500) : null,
+            }).eq('id', registeredUserId);
+          } catch (updateErr) {
+            console.warn('[AuthView] Additional profile fields save warning:', updateErr);
+          }
+        }
+
         if (mode === "signup" && identifier.includes("@")) {
           setSuccessMsg("تم إنشاء الحساب بنجاح! يرجى تفقد بريدك الإلكتروني لتأكيد الحساب.");
         } else {
@@ -153,7 +196,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md z-10">
         <GlassCard className="p-8 rounded-3xl backdrop-blur-2xl border border-slate-200/80 shadow-2xl shadow-blue-950/5 bg-white/90 text-slate-800">
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <div className="w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-500/25 border border-white/20">
               <ShieldCheck className="w-8 h-8 text-white" />
             </div>
@@ -161,7 +204,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
             <p className="text-xs text-slate-500 font-bold">منصة التوظيف والفرص المهنية الأولى</p>
           </div>
 
-          <div className="flex bg-slate-100/80 p-1.5 rounded-2xl mb-6 border border-slate-200/60">
+          <div className="flex bg-slate-100/80 p-1.5 rounded-2xl mb-5 border border-slate-200/60">
             <button
               onClick={() => { setMode("login"); setError(null); setSuccessMsg(null); }}
               className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${mode === "login" ? "bg-white text-blue-600 shadow-sm border border-slate-200/50" : "text-slate-500 hover:text-slate-800"}`}
@@ -211,7 +254,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
           </button>
 
           {/* Divider */}
-          <div className="relative mb-6 flex items-center justify-center">
+          <div className="relative mb-5 flex items-center justify-center">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200" />
             </div>
@@ -235,41 +278,146 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
             )}
           </AnimatePresence>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3.5">
             {mode === "signup" && (
               <>
-                <div className="space-y-1.5 mb-2">
-                  <label className="block text-[11px] font-bold text-slate-700">نوع الحساب (اختر دورك في المنصة)</label>
-                  <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5 mb-3">
+                  <label className="block text-[11px] font-black text-slate-700">نوع الحساب (اختر فئتك):</label>
+                  <div className="grid grid-cols-3 gap-1.5">
                     <button
                       type="button"
                       onClick={() => setSelectedRole("seeker")}
-                      className={`p-3 rounded-xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
+                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
                         selectedRole === "seeker"
-                          ? "border-blue-600 bg-blue-50/80 text-blue-900 ring-2 ring-blue-500/20 shadow-sm"
+                          ? "border-blue-600 bg-blue-50 text-blue-900 ring-2 ring-blue-500/20 shadow-sm"
                           : "border-slate-200 bg-slate-50/60 text-slate-600 hover:border-slate-300"
                       }`}
                     >
-                      <span className="text-xs font-black">باحث عن عمل 👤</span>
-                      <span className="text-[10px] text-slate-500 font-medium mt-1">تصفح الفرص والتقديم للوظائف</span>
+                      <span className="text-[11px] font-black block">باحث عن عمل</span>
+                      <span className="text-[9px] text-slate-400 font-bold block mt-0.5">👤 وظائف وCV</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setSelectedRole("employer")}
-                      className={`p-3 rounded-xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
+                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
                         selectedRole === "employer"
-                          ? "border-blue-600 bg-blue-50/80 text-blue-900 ring-2 ring-blue-500/20 shadow-sm"
+                          ? "border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20 shadow-sm"
                           : "border-slate-200 bg-slate-50/60 text-slate-600 hover:border-slate-300"
                       }`}
                     >
-                      <span className="text-xs font-black">صاحب عمل 💼</span>
-                      <span className="text-[10px] text-slate-500 font-medium mt-1">نشر الوظائف واستقطاب الكوادر</span>
+                      <span className="text-[11px] font-black block">صاحب عمل</span>
+                      <span className="text-[9px] text-slate-400 font-bold block mt-0.5">💼 نشر وظائف</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRole("freelancer")}
+                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                        selectedRole === "freelancer"
+                          ? "border-amber-600 bg-amber-50 text-amber-900 ring-2 ring-amber-500/20 shadow-sm"
+                          : "border-slate-200 bg-slate-50/60 text-slate-600 hover:border-slate-300"
+                      }`}
+                    >
+                      <span className="text-[11px] font-black block">عمل حر / كشفي</span>
+                      <span className="text-[9px] text-slate-400 font-bold block mt-0.5">⚡ فني وميداني</span>
                     </button>
                   </div>
                 </div>
 
+                {/* تفاصيل العمل الحر إن كان مختاراً */}
+                {selectedRole === "freelancer" && (
+                  <div className="p-3 bg-amber-50/80 border border-amber-200/70 rounded-2xl space-y-2.5 mb-2">
+                    <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest">نوع الحساب الميداني:</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFreelancerType("technician")}
+                        className={`py-2 px-3 rounded-xl border text-xs font-black transition-all ${
+                          freelancerType === "technician"
+                            ? "bg-amber-500 text-white border-amber-600 shadow-sm"
+                            : "bg-white text-slate-600 border-amber-200"
+                        }`}
+                      >
+                        🔧 فني مقدّم خدمة
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFreelancerType("client")}
+                        className={`py-2 px-3 rounded-xl border text-xs font-black transition-all ${
+                          freelancerType === "client"
+                            ? "bg-amber-500 text-white border-amber-600 shadow-sm"
+                            : "bg-white text-slate-600 border-amber-200"
+                        }`}
+                      >
+                        🏠 طالب خدمة (زبون)
+                      </button>
+                    </div>
+
+                    {freelancerType === "technician" ? (
+                      <div className="space-y-2 pt-1">
+                        <div>
+                          <label className="block text-[10px] font-black text-slate-600 mb-1">الاختصاص المهني</label>
+                          <input
+                            type="text"
+                            value={specialty}
+                            onChange={(e) => setSpecialty(e.target.value)}
+                            placeholder="مثال: كهربائي، تبريد وتكييف، سيراميك، بناء..."
+                            className="w-full bg-white border border-amber-200 rounded-xl py-2 px-3 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 font-semibold"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 pt-1">
+                        <div>
+                          <label className="block text-[10px] font-black text-slate-600 mb-1">عنوان البيت / المنطقة</label>
+                          <input
+                            type="text"
+                            value={homeAddress}
+                            onChange={(e) => setHomeAddress(e.target.value)}
+                            placeholder="مثال: بغداد، المنصور، قرب جامع..."
+                            className="w-full bg-white border border-amber-200 rounded-xl py-2 px-3 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 font-semibold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-black text-slate-600 mb-1">شرح المشكلة / المطلوب</label>
+                          <textarea
+                            value={serviceRequest}
+                            onChange={(e) => setServiceRequest(e.target.value)}
+                            placeholder="شرح المشكلة بالتفصيل للتواصل المباشر..."
+                            rows={2}
+                            className="w-full bg-white border border-amber-200 rounded-xl py-2 px-3 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 font-semibold resize-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* حقول صاحب العمل */}
+                {selectedRole === "employer" && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">اسم المنشأة / الشركة</label>
+                    <div className="relative">
+                      <Building2 className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      <input
+                        type="text"
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        placeholder="مثال: شركة النور للمقاولات"
+                        className="w-full bg-slate-50/80 border border-slate-200 rounded-xl py-2.5 pr-10 pl-4 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 font-semibold"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* حقل الاسم الصريح */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1.5">الاسم الكامل</label>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    {selectedRole === 'seeker'
+                      ? 'الاسم الصريح (الاختصاص)'
+                      : selectedRole === 'employer'
+                        ? 'الاسم الكامل للمسؤول / المدير'
+                        : 'الاسم الصريح'}
+                  </label>
                   <div className="relative">
                     <User
                       className={`absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors ${nameError ? 'text-red-400' : 'text-slate-400'}`}
@@ -279,8 +427,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
                       type="text"
                       value={name}
                       onChange={(e) => handleNameChange(e.target.value)}
-                      placeholder="مثال: محمد علي"
-                      className={`w-full bg-slate-50/80 border rounded-xl py-3 pr-10 pl-4 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-4 transition-all font-semibold ${
+                      placeholder={
+                        selectedRole === 'seeker'
+                          ? "مثال: أحمد علي (مهندس برمجيات)"
+                          : selectedRole === 'freelancer' && freelancerType === 'technician'
+                            ? "مثال: سالم (كهربائي منازل)"
+                            : "اسمك الكامل"
+                      }
+                      className={`w-full bg-slate-50/80 border rounded-xl py-2.5 pr-10 pl-4 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-4 transition-all font-semibold ${
                         nameError
                           ? 'border-red-400 focus:border-red-500 focus:ring-red-500/10'
                           : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10'
@@ -288,20 +442,35 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
                     />
                   </div>
                   {nameError && (
-                    <div className="mt-1.5 flex items-start gap-1.5 text-red-600 text-[11px] font-semibold">
+                    <div className="mt-1 flex items-start gap-1.5 text-red-600 text-[11px] font-semibold">
                       <AlertCircle size={13} className="shrink-0 mt-0.5" />
                       <span>{nameError}</span>
                     </div>
                   )}
                 </div>
+
+                {/* حقل الموقع الجغرافي */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">تحديد الموقع (المدينة / المنطقة)</label>
+                  <div className="relative">
+                    <MapPin className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input
+                      type="text"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder="مثال: بغداد، الكرادة"
+                      className="w-full bg-slate-50/80 border border-slate-200 rounded-xl py-2.5 pr-10 pl-4 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 font-semibold"
+                    />
+                  </div>
+                </div>
               </>
             )}
 
             <div>
-              <div className="flex justify-between items-center mb-1.5">
+              <div className="flex justify-between items-center mb-1">
                 <label className="text-[11px] font-bold text-slate-700">البريد الإلكتروني أو رقم الهاتف</label>
                 {identifierType !== "unknown" && (
-                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${identifierType === "email" ? "bg-blue-50 text-blue-600 border border-blue-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"}`}>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${identifierType === "email" ? "bg-blue-50 text-blue-600 border border-blue-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"}`}>
                     {identifierType === "email" ? <Mail size={10} /> : <Phone size={10} />}
                     {identifierType === "email" ? "بريد إلكتروني" : "رقم هاتف"}
                   </span>
@@ -318,7 +487,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
                   value={identifier}
                   onChange={(e) => handleIdentifierChange(e.target.value)}
                   placeholder="07701234567 أو name@domain.com"
-                  className={`w-full bg-slate-50/80 border rounded-xl py-3 pr-10 pl-4 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-4 transition-all font-semibold ltr ${
+                  className={`w-full bg-slate-50/80 border rounded-xl py-2.5 pr-10 pl-4 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-4 transition-all font-semibold ltr ${
                     identifierError
                       ? 'border-red-400 focus:border-red-500 focus:ring-red-500/10'
                       : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10'
@@ -326,7 +495,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
                 />
               </div>
               {identifierError && (
-                <div className="mt-1.5 flex items-start gap-1.5 text-red-600 text-[11px] font-semibold">
+                <div className="mt-1 flex items-start gap-1.5 text-red-600 text-[11px] font-semibold">
                   <AlertCircle size={13} className="shrink-0 mt-0.5 text-red-500" />
                   <span>{identifierError}</span>
                 </div>
@@ -334,7 +503,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1.5">كلمة السر</label>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">كلمة السر</label>
               <div className="relative">
                 <Lock className={`absolute right-3.5 top-1/2 -translate-y-1/2 ${passwordError ? 'text-red-400' : 'text-slate-400'}`} size={16} />
                 <input
@@ -342,7 +511,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
                   value={password}
                   onChange={(e) => handlePasswordChange(e.target.value)}
                   placeholder="••••••••"
-                  className={`w-full bg-slate-50/80 border rounded-xl py-3 pr-10 pl-4 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-4 transition-all font-semibold ${
+                  className={`w-full bg-slate-50/80 border rounded-xl py-2.5 pr-10 pl-4 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-4 transition-all font-semibold ${
                     passwordError
                       ? 'border-red-400 focus:border-red-500 focus:ring-red-500/10'
                       : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500/10'
@@ -350,7 +519,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
                 />
               </div>
               {passwordError && (
-                <div className="mt-1.5 flex items-start gap-1.5 text-red-600 text-[11px] font-semibold">
+                <div className="mt-1 flex items-start gap-1.5 text-red-600 text-[11px] font-semibold">
                   <AlertCircle size={13} className="shrink-0 mt-0.5 text-red-500" />
                   <span>{passwordError}</span>
                 </div>
@@ -372,7 +541,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/25 hover:shadow-blue-600/40 transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-6 active:scale-[0.99]"
+              className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/25 hover:shadow-blue-600/40 transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-4 active:scale-[0.99]"
             >
               {loading ? (
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -389,4 +558,3 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, handleGoogleLogin
     </div>
   );
 };
-

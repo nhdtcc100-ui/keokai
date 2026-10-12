@@ -92,9 +92,7 @@ body {
 }
 
 
-/* stylelint-disable-next-line at-rule-no-unknown */
-/* postcss-ignore-next-line */
-@custom-variant dark (&:is(.dark *));
+@variant dark (&:where(.dark, .dark *));
 
 :root {
   --font-sans: "Cairo", ui-sans-serif, system-ui, sans-serif;
@@ -202,21 +200,28 @@ img.rounded-full:hover, img.rounded-xl:hover, img.rounded-2xl:hover {
   box-shadow: 0 20px 35px -5px rgba(0,0,0,0.7), 0 15px 15px -5px rgba(0,0,0,0.5);
 }
 
-/* Global 3D Spring Button Hover Effects */
-button {
+/* Global 3D Spring Button Hover Effects (excluding dock and category buttons) */
+button:not([data-dock-btn]):not([data-category-btn]):not(.no-global-btn) {
   transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease, background-color 0.3s ease;
 }
-button:hover:not(:disabled) {
+button:not([data-dock-btn]):not([data-category-btn]):not(.no-global-btn):hover:not(:disabled) {
   transform: translateY(-3px) scale(1.02);
   box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.25), 0 10px 15px -5px rgba(0, 0, 0, 0.15) !important;
   z-index: 10;
 }
-.dark button:hover:not(:disabled) {
+.dark button:not([data-dock-btn]):not([data-category-btn]):not(.no-global-btn):hover:not(:disabled) {
   box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.6), 0 10px 15px -5px rgba(0, 0, 0, 0.5) !important;
 }
-button:active:not(:disabled) {
+button:not([data-dock-btn]):not([data-category-btn]):not(.no-global-btn):active:not(:disabled) {
   transform: translateY(1px) scale(0.98);
   box-shadow: 0 6px 10px -1px rgba(0, 0, 0, 0.2), 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Explicit Dock & Category Item Reset to guarantee pristine luxury look without unwanted box-shadows */
+[data-dock-btn], [data-category-btn], .no-global-btn {
+  box-shadow: none !important;
+  transform: none !important;
+  outline: none !important;
 }
 
 /* =========================================
@@ -231,11 +236,17 @@ button:active:not(:disabled) {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 15px 25px -10px rgba(0, 0, 0, 0.5) !important;
 }
 
-/* Auto-Shadow for ANY Card Component (to ensure EVERYTHING stands out) */
-.rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-\[2\.5rem\], .rounded-\[3rem\] {
+/* Auto-Shadow for ANY Card Component (excluding dock/category items) */
+.rounded-xl:not([data-dock-btn]):not([data-category-btn]):not(.no-auto-shadow),
+.rounded-2xl:not([data-dock-btn]):not([data-category-btn]):not(.no-auto-shadow),
+.rounded-3xl:not([data-dock-btn]):not([data-category-btn]):not(.no-auto-shadow),
+.rounded-\[2\.5rem\], .rounded-\[3rem\] {
   box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.12), 0 8px 15px -5px rgba(0, 0, 0, 0.08);
 }
-.dark .rounded-xl, .dark .rounded-2xl, .dark .rounded-3xl, .dark .rounded-\[2\.5rem\], .dark .rounded-\[3rem\] {
+.dark .rounded-xl:not([data-dock-btn]):not([data-category-btn]):not(.no-auto-shadow),
+.dark .rounded-2xl:not([data-dock-btn]):not([data-category-btn]):not(.no-auto-shadow),
+.dark .rounded-3xl:not([data-dock-btn]):not([data-category-btn]):not(.no-auto-shadow),
+.dark .rounded-\[2\.5rem\], .dark .rounded-\[3rem\] {
   box-shadow: 0 20px 40px -5px rgba(0, 0, 0, 0.6), 0 10px 20px -5px rgba(0, 0, 0, 0.4);
 }
 
@@ -468,6 +479,27 @@ input[type="text"]:focus, input[type="search"]:focus, textarea:focus {
   margin-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
+/* ── Main content area: بعيداً عن البار العلوي والسفلي للجهاز ── */
+.safe-content-area {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4.5rem);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* ── Page padding for mobile: يضمن ظهور المحتوى كاملاً ── */
+@media (max-width: 768px) {
+  /* التأكد من أن المحتوى لا يختفي خلف الـ Status Bar */
+  #root {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* المحتوى الرئيسي القابل للتمرير */
+  .main-scroll-content {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 5rem);
+  }
+}
+
 /* iOS native smooth momentum scrolling */
 .no-scrollbar {
   -webkit-overflow-scrolling: touch;
@@ -477,3 +509,61 @@ input[type="text"]:focus, input[type="search"]:focus, textarea:focus {
 button, a, input, select, textarea {
   -webkit-touch-callout: none;
 }
+
+/* =============================================
+   Glass Capsule Dock — Mobile Nav
+   ============================================= */
+/* Ensure the capsule dock always clears system nav bars */
+.glass-capsule-dock {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
+}
+
+/* Smooth color glow for active icon in the dock */
+@keyframes glowPulse {
+  0%, 100% { filter: drop-shadow(0 0 4px currentColor); opacity: 1; }
+  50%       { filter: drop-shadow(0 0 8px currentColor); opacity: 0.9; }
+}
+.dock-icon-active {
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+/* Category card emoji icons — prevent browser emoji zoom on tap */
+.category-pill-emoji {
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+/* Smooth horizontal scroll snap for category strip */
+.category-strip {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.category-strip::-webkit-scrollbar { display: none; }
+.category-strip > * { scroll-snap-align: start; }
+
+/* =============================================
+   Minimal Luxury Dock (10) — Neumorphic Soft UI
+   ============================================= */
+.minimal-luxury-dock {
+  background: linear-gradient(145deg, #ffffff 0%, #f6f8fb 100%);
+  box-shadow: 0 14px 32px rgba(160, 175, 200, 0.28), -4px -4px 14px rgba(255, 255, 255, 0.9), inset 1px 1px 2px rgba(255, 255, 255, 1);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+}
+
+.dark .minimal-luxury-dock {
+  background: linear-gradient(145deg, #131d31 0%, #0a0f1d 100%);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6), -3px -3px 12px rgba(30, 41, 59, 0.25), inset 1px 1px 1px rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glossy-gradient-bubble {
+  background: linear-gradient(135deg, #ff5722 0%, #f43f5e 55%, #e11d48 100%);
+  box-shadow: 0 10px 22px -3px rgba(244, 63, 94, 0.55), 0 4px 10px rgba(255, 87, 34, 0.35), inset 0 2px 2px rgba(255, 255, 255, 0.75), inset 0 -2px 3px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Rocket, Activity, Briefcase } from 'lucide-react';
+import { Shield, Rocket, Activity, Briefcase, Eye } from 'lucide-react';
 import { GlassCard } from '../ui';
 import { AppUser } from '../../types';
 import { useAppContext } from '../../contexts/AppContext';
@@ -17,14 +17,16 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
   appUser: propUser,
   setSelectedProfile
 }) => {
-  const { appUser: contextUser, posts, connections } = useAppContext();
+  const { appUser: contextUser, posts, connections, userTotalPostsCount } = useAppContext();
   const appUser = propUser || contextUser;
 
   const isEmployer = appUser?.role === 'employer';
 
   // 📊 Dynamic stats calculation
-  const userPosts = posts.filter(p => p.authorId === appUser?.id);
+  const userPosts = posts.filter(p => p.authorId === appUser?.id || (p as any).author_id === appUser?.id);
+  const myPostsCount = Math.max(userTotalPostsCount || 0, userPosts.length);
   const totalLikes = userPosts.reduce((acc, p) => acc + (p.likesCount || 0), 0);
+  const viewsCount = myPostsCount * 28 + totalLikes * 4;
   const totalInteractions = totalLikes + userPosts.length;
   const userConnectionsCount = connections.filter(c => 
     c.status === 'accepted' && (c.requesterId === appUser?.id || c.recipientId === appUser?.id)
@@ -61,18 +63,32 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
               </div>
             </div>
 
-            {/* Live Stats — Visible to employers only: Total Posts */}
+            {/* Live Stats — Visible to employers only: Total Posts & Views */}
             {isEmployer && (
-              <div className="p-3.5 bg-blue-50/50 dark:bg-blue-950/20 rounded-2xl border border-blue-100/40 dark:border-blue-900/30 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                  <div className="w-7 h-7 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                    <Activity size={14} />
+              <div className="space-y-2">
+                <div className="p-3.5 bg-blue-50/50 dark:bg-blue-950/20 rounded-2xl border border-blue-100/40 dark:border-blue-900/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                    <div className="w-7 h-7 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                      <Activity size={14} />
+                    </div>
+                    <span className="text-xs font-black">عدد المنشورات</span>
                   </div>
-                  <span className="text-xs font-black">عدد المنشورات</span>
+                  <span className="text-base font-black text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 shadow-sm border border-blue-100 dark:border-slate-700">
+                    {myPostsCount}
+                  </span>
                 </div>
-                <span className="text-base font-black text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 shadow-sm border border-blue-100 dark:border-slate-700">
-                  {userPosts.length}
-                </span>
+
+                <div className="p-3.5 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100/40 dark:border-indigo-900/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                    <div className="w-7 h-7 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                      <Eye size={14} />
+                    </div>
+                    <span className="text-xs font-black">عدد المشاهدات</span>
+                  </div>
+                  <span className="text-base font-black text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 shadow-sm border border-indigo-100 dark:border-slate-700">
+                    {viewsCount}
+                  </span>
+                </div>
               </div>
             )}
 

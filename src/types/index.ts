@@ -11,6 +11,7 @@ export interface Post {
   created_at?: string;
   likesCount: number;
   dislikesCount: number;
+  commentsCount?: number;
   isEcho?: boolean;
   originalPostId?: string;
   originalAuthorName?: string;
@@ -29,6 +30,7 @@ export interface Job {
   description: string;
   requirements?: string;
   jobType?: string;
+  category?: string;
   working_hours?: string;
   image_url?: string;
   is_active?: boolean;
@@ -74,7 +76,7 @@ export interface AppUser {
   name: string;
   email: string;
   avatar: string;
-  role: 'seeker' | 'employer';
+  role: 'seeker' | 'employer' | 'freelancer';
   isPro: boolean;
   is_pro?: boolean;
   isAdmin?: boolean;
@@ -83,6 +85,22 @@ export interface AppUser {
   is_active?: boolean;
   bio?: string;
   title?: string;
+  displayTitle?: string;
+  display_title?: string;
+  isAvailable?: boolean;
+  is_available?: boolean;
+  open_to?: string;
+  freelancerType?: 'technician' | 'client' | null;
+  freelancer_type?: 'technician' | 'client' | null;
+  specialty?: string;
+  homeAddress?: string;
+  home_address?: string;
+  serviceRequest?: string;
+  service_request?: string;
+  companyLogoUrl?: string;
+  company_logo_url?: string;
+  companyBio?: string;
+  company_bio?: string;
   companyName?: string;
   industry?: string;
   website?: string;

@@ -39,7 +39,7 @@ export const isJobPoster = (user: any): boolean => {
 
   const role = String(user.role || '').toLowerCase().trim();
 
-  // 🚫 Seeker is strictly forbidden from posting jobs
+  // 🚫 Seeker and Freelancer are strictly forbidden from posting formal corporate jobs
   if (
     role === 'seeker' ||
     role === 'jobseeker' ||
@@ -47,7 +47,10 @@ export const isJobPoster = (user: any): boolean => {
     role === 'candidate' ||
     role === 'applicant' ||
     role === 'باحث' ||
-    role === 'باحث عن عمل'
+    role === 'باحث عن عمل' ||
+    role === 'freelancer' ||
+    role === 'عمل حر' ||
+    role === 'كشفي'
   ) {
     return false;
   }
@@ -89,6 +92,23 @@ export const isJobSeeker = (user: any): boolean => {
 };
 
 /**
+ * ⚡ Checks if a user is a Freelancer / Field Specialist (عمل حر / كشفي).
+ */
+export const isFreelancer = (user: any): boolean => {
+  if (!user) return false;
+  if (isUserAdmin(user)) return false;
+
+  const role = String(user.role || '').toLowerCase().trim();
+  return (
+    role === 'freelancer' ||
+    role === 'كشفي' ||
+    role === 'عمل حر' ||
+    role === 'technician' ||
+    role === 'فني'
+  );
+};
+
+/**
  * 📝 Checks if a user can post articles, posts, and interact (like/dislike/comment/echo).
  * Seekers are read-only for posts and cannot publish or interact.
  * Employers and Admins have full access to post and interact.
@@ -99,4 +119,5 @@ export const canUserPostAndInteract = (user: any): boolean => {
   if (isJobSeeker(user)) return false;
   return isJobPoster(user);
 };
+
 

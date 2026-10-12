@@ -27,6 +27,9 @@ import { SecurityAlertToast } from './components/features/security/SecurityAlert
 import { initAntiInspect, setAntiInspectUser } from './lib/security/antiInspect';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { isJobPoster, canUserPostAndInteract } from './lib/utils/roleUtils';
+import { JobCategoriesCard } from './components/features/missions/JobCategoriesCard';
+import { getJobCategory, isJobInCategory } from './lib/utils/jobCategoryUtils';
+import { useMobileBackButton } from './lib/hooks/useMobileBackButton';
 
 declare global {
   interface Window {
@@ -123,9 +126,10 @@ function App() {
   // 💼 Page View state for posting a job
   const [pageJobFormData, setPageJobFormData] = useState({
     title: '', company: appUser?.companyName || '', description: '', requirements: '',
-    location: '', salary: '', jobType: 'دوام كامل', working_hours: '', imageUrl: '', is_active: true
+    location: '', salary: '', jobType: 'دوام كامل', category: '', working_hours: '', imageUrl: '', is_active: true
   });
   const [isPostingJobPage, setIsPostingJobPage] = useState(false);
+  const [selectedJobCategory, setSelectedJobCategory] = useState<string>('الكل');
 
   const handlePostJobFromPage = async () => {
     if (!appUser) return;
@@ -138,6 +142,10 @@ function App() {
       return;
     }
     if (!pageJobFormData.title.trim()) { addToast('يرجى إدخال المسمى الوظيفي', 'error'); return; }
+    if (!pageJobFormData.category?.trim()) {
+      addToast('يرجى تحديد قسم الوظيفة (حقل إجباري) ⚠️', 'error');
+      return;
+    }
 
     setIsPostingJobPage(true);
     try {
@@ -149,6 +157,7 @@ function App() {
         location: pageJobFormData.location || appUser.location || 'عن بُعد',
         salary: pageJobFormData.salary,
         jobType: pageJobFormData.jobType,
+        category: pageJobFormData.category,
         working_hours: pageJobFormData.working_hours,
         imageUrl: appUser.avatar || '',
         employer_id: appUser.id,
@@ -161,7 +170,7 @@ function App() {
       addToast('🚀 تم نشر الوظيفة بنجاح!');
       setPageJobFormData({
         title: '', company: appUser?.companyName || '', description: '', requirements: '',
-        location: '', salary: '', jobType: 'دوام كامل', working_hours: '', imageUrl: '', is_active: true
+        location: '', salary: '', jobType: 'دوام كامل', category: '', working_hours: '', imageUrl: '', is_active: true
       });
       setActiveTab('home');
     } catch (e: any) {
@@ -343,6 +352,45 @@ function App() {
       addToast('تم إنهاء المكالمة', 'success');
     }
   };
+
+  // 📱 Universal Android Hardware Back Button & Mobile Popstate Controller
+  useMobileBackButton({
+    activeCall,
+    endCall,
+    detailFeed,
+    setDetailFeed,
+    selectedPostDetail,
+    setSelectedPostDetail,
+    selectedJobDetail,
+    setSelectedJobDetail,
+    applyingJob,
+    setApplyingJob,
+    editingFeedJob,
+    setEditingFeedJob,
+    editingFeedPost,
+    setEditingFeedPost,
+    showPostFormGlobal,
+    setShowPostFormGlobal,
+    relocatingPost,
+    setRelocatingPost,
+    sharingJob,
+    setSharingJob,
+    showMobileMenu,
+    setShowMobileMenu,
+    showNotifications,
+    setShowNotifications,
+    showAdmin,
+    setShowAdmin,
+    selectedChat,
+    setSelectedChat,
+    selectedProfile,
+    setSelectedProfile,
+    isEditingProfile,
+    setIsEditingProfile,
+    activeTab,
+    setActiveTab,
+    addToast,
+  });
 
 
   // Global hook for PeerJS closing
@@ -750,7 +798,12 @@ function App() {
 
       {/* --- Main Feed --- */}
       {!showAdmin && (
-      <main className={`relative z-10 ${activeTab === 'messages' ? 'max-w-7xl' : 'max-w-6xl'} mx-auto px-0 md:px-4 ${activeTab === 'messages' ? 'h-[100dvh] overflow-hidden' : 'pt-0 pb-28 md:pb-12 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start'}`}>
+      <main
+        className={`relative z-10 ${activeTab === 'messages' ? 'max-w-7xl' : 'max-w-6xl'} mx-auto px-3 sm:px-4 md:px-6 ${activeTab === 'messages' ? 'h-[100dvh] overflow-hidden' : 'pt-2 md:pt-4 pb-12 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start'}`}
+        style={activeTab !== 'messages' ? {
+          paddingBottom: 'calc(max(7.5rem, env(safe-area-inset-bottom, 0px) + 7.5rem))'
+        } : undefined}
+      >
         
         <GlobalPostModal
           showPostFormGlobal={showPostFormGlobal} setShowPostFormGlobal={setShowPostFormGlobal}
@@ -796,6 +849,14 @@ function App() {
               {activeTab === 'home' && (
                 <>
                   <NewsCarousel appUser={appUser} onViewAll={() => setActiveTab('news')} />
+
+                  {/* 💼 Job Categories Card (أسفل الكاروسيل مباشرة وفق متطلبات التصميم) */}
+                  <JobCategoriesCard
+                    selectedCategory={selectedJobCategory}
+                    onSelectCategory={setSelectedJobCategory}
+                    jobs={jobs}
+                  />
+
                   {/* Smart Job Banner — only for seekers with profile data */}
                   <SmartJobBanner
                     jobs={jobs}
@@ -817,7 +878,9 @@ function App() {
                         التغذية المباشرة
                       </span>
                       <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">
-                        ({posts.length + jobs.length} عنصر)
+                        {selectedJobCategory === 'الكل' 
+                          ? `(${posts.length + jobs.length} عنصر)` 
+                          : `(${selectedJobCategory}: ${(selectedJobCategory === 'أخبار' ? posts.length : 0) + jobs.filter(j => isJobInCategory(j, selectedJobCategory)).length} عنصر)`}
                       </span>
                     </div>
 
@@ -840,17 +903,48 @@ function App() {
                     </button>
                   </div>
 
-                  <div className="space-y-4 pb-20">
+                  <div className="space-y-4 pb-36 md:pb-12">
                     {(() => {
+                      // Filter jobs by selected category using normalized comparison
+                      const filteredFeedJobs = selectedJobCategory === 'الكل'
+                        ? jobs
+                        : jobs.filter(j => isJobInCategory(j, selectedJobCategory));
+
+                      const feedPosts = selectedJobCategory === 'الكل'
+                        ? posts
+                        : (selectedJobCategory === 'أخبار' ? posts : []);
+
                       // Combined feed logic
                       const combined = [
-                        ...posts.map(p => ({ ...p, feedType: 'post' })),
-                        ...jobs.map(j => ({ ...j, feedType: 'job', timestamp: j.postedAt }))
+                        ...feedPosts.map(p => ({ ...p, feedType: 'post' })),
+                        ...filteredFeedJobs.map(j => ({ ...j, feedType: 'job', timestamp: j.postedAt }))
                       ].sort((a, b) => {
                         const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date();
                         const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date();
                         return dateB.getTime() - dateA.getTime();
                       });
+
+                      if (combined.length === 0) {
+                        return (
+                          <div className="text-center py-12 px-4 bg-white/80 dark:bg-slate-900/80 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm" dir="rtl">
+                            <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                              <Briefcase size={28} />
+                            </div>
+                            <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 mb-1">
+                              لا توجد وظائف معروضة حالياً في قسم «{selectedJobCategory}»
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                              يمكنك تصفح باقي الأقسام أو إعادة تعيين الفلتر لعرض جميع الوظائف
+                            </p>
+                            <button
+                              onClick={() => setSelectedJobCategory('الكل')}
+                              className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-black shadow-md hover:bg-blue-700 active:scale-95 transition-all"
+                            >
+                              عرض جميع الوظائف
+                            </button>
+                          </div>
+                        );
+                      }
 
                       return combined.map((item: any, idx) => (
                         <React.Fragment key={item.id}>

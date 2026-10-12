@@ -97,15 +97,23 @@ export function GroupsView({ addToast, appUser, sharedPost, onClearSharedPost, o
       if (error) throw error;
       if (!group) throw new Error('فشل إنشاء المجموعة');
 
-      // Optimistic update: add group immediately to local state
       const newGroup = group as any;
+
+      // تحديث فوري للقوائم المحلية
       setMyGroups(prev => [newGroup, ...prev]);
-      setGroups(prev => prev[0]?.id?.startsWith('dg-') ? prev : [newGroup, ...prev]);
+      setGroups(prev => prev[0]?.id?.startsWith('dg-') ? [newGroup] : [newGroup, ...prev]);
+
+      // إعادة جلب البيانات من الخادم لضمان التزامن
+      await Promise.all([fetchMyGroups(), fetchGroups()]);
 
       addToast('تم إنشاء المجموعة بنجاح! 🎉');
       setCreateForm({ name: '', description: '', category: 'عام', is_private: false });
       setShowCreatePage(false);
+
+      // الانتقال مباشرةً إلى تبويب "مجموعاتي" وفتح المجموعة الجديدة
       setActiveTab('my');
+      // فتح المجموعة الجديدة مباشرةً بدون الحاجة للخروج والعودة
+      setSelectedGroup(newGroup);
     } catch (e: any) { addToast('خطأ: ' + e.message, 'error'); }
     setCreating(false);
   };

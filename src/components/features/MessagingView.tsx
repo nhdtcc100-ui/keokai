@@ -37,7 +37,7 @@ import {
   Filter,
   Clock
 } from 'lucide-react';
-import { GroupDetailView } from './groups';
+import { GroupDetailView, CreateGroupPage } from './groups';
 import { supabase } from '../../lib/supabase';
 import { imageService } from '../../lib/services/imageService';
 import { AppUser, AppConnection } from '../../types';
@@ -868,6 +868,28 @@ export function MessagingView({
   const canSend = !(pendingFile && isSendingFile) && (!!content.trim() || !!pendingFile) && !msgError;
 
 
+  if (showCreateGroup) {
+    return (
+      <div className="fixed inset-0 top-[60px] md:top-[68px] bottom-[80px] md:bottom-0 left-0 right-0 z-40 overflow-y-auto bg-slate-50 dark:bg-slate-950 px-2 sm:px-4 py-4 overscroll-contain">
+        <CreateGroupPage
+          currentUser={currentUser}
+          syncedUsers={syncedUsers}
+          onClose={() => setShowCreateGroup(false)}
+          onGroupCreated={(newGroup) => {
+            setShowCreateGroup(false);
+            onSelectChat(null as any);
+            setSelectedGroup(null);
+            setTimeout(() => {
+              setSelectedGroup(newGroup);
+            }, 50);
+          }}
+          addToast={addToast}
+          fetchMyGroups={fetchMyGroups}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col md:flex-row md:rounded-t-[3rem] overflow-hidden shadow-2xl border-x border-t border-white/80 bg-white fixed md:relative top-[85px] bottom-[105px] left-3 right-3 md:top-0 md:bottom-0 md:left-0 md:right-0 md:h-[calc(100vh-75px)] md:mt-0 md:mx-auto anti-gravity-card rounded-[2.5rem] md:rounded-none" dir="rtl">
 
@@ -1365,171 +1387,6 @@ export function MessagingView({
           </div>
         )}
       </div>
-
-      {/* New Group Modal */}
-      <AnimatePresence>
-        {showCreateGroup && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
-              onClick={() => setShowCreateGroup(false)} 
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 50 }} 
-              animate={{ scale: 1, opacity: 1, y: 0 }} 
-              exit={{ scale: 0.9, opacity: 0, y: 50 }} 
-              className="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[85vh] mb-12 md:mb-0"
-            >
-              <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-white shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-50 rounded-2xl flex items-center justify-center">
-                    <Plus size={20} className="text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-black text-slate-800 leading-none">إنشاء مجموعة</h3>
-                    <p className="text-[10px] text-slate-400 font-bold mt-1">ابدأ مجتمعاً مهنياً جديداً</p>
-                  </div>
-                </div>
-                <button onClick={() => setShowCreateGroup(false)} className="p-2 text-slate-400 hover:bg-slate-50 rounded-xl transition-all">
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 custom-chat-scroll">
-                {/* Privacy Toggle */}
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl ${isPrivate ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'}`}>
-                      {isPrivate ? <Shield size={18} /> : <Compass size={18} />}
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-slate-800">{isPrivate ? 'مجموعة خاصة' : 'مجموعة عامة'}</p>
-                      <p className="text-[9px] text-slate-400 font-bold">{isPrivate ? 'تحتاج لموافقة المالك للانضمام' : 'يمكن للجميع الانضمام والرد'}</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setIsPrivate(!isPrivate)}
-                    className={`w-12 h-6 rounded-full relative transition-all ${isPrivate ? 'bg-amber-500' : 'bg-green-500'}`}
-                  >
-                    <motion.div 
-                      animate={{ x: isPrivate ? -24 : -2 }}
-                      className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm" 
-                    />
-                  </button>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase mr-1 mb-2 block">اسم المجموعة</label>
-                      <input 
-                        type="text" 
-                        placeholder="أدخل اسم المجموعة..."
-                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3 px-5 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all"
-                        value={groupName}
-                        onChange={(e) => setGroupName(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase mr-1 mb-2 block">التصنيف</label>
-                      <select 
-                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3 px-5 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all"
-                        value={groupCategory}
-                        onChange={(e) => setGroupCategory(e.target.value)}
-                      >
-                        <option value="عام">عام</option>
-                        <option value="تقني">تقني</option>
-                        <option value="وظائف">وظائف</option>
-                        <option value="تجارة">تجارة</option>
-                        <option value="هندسة">هندسة</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase mr-1 mb-2 block">نبذة عن المجموعة</label>
-                    <textarea 
-                      placeholder="ما هو هدف هذه المجموعة؟"
-                      className="w-full h-[115px] bg-slate-50 border border-slate-100 rounded-2xl py-3 px-5 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all resize-none"
-                      value={groupDescription}
-                      onChange={(e) => setGroupDescription(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                {/* Horizontal Member Selection */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-slate-400 uppercase mr-1">إضافة أعضاء ({selectedGroupMembers.length})</label>
-                    <div className="relative w-40">
-                      <Search size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input 
-                        type="text" 
-                        placeholder="بحث..." 
-                        className="w-full bg-slate-50 border-none rounded-full py-1.5 pr-8 pl-3 text-[10px] font-bold outline-none focus:ring-2 focus:ring-blue-100 transition-all"
-                        value={memberSearchQuery}
-                        onChange={(e) => setMemberSearchQuery(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-4 overflow-x-auto pb-4 custom-chat-scroll -mx-2 px-2 scroll-smooth">
-                    {syncedUsers.filter((u: any) => (u?.name || '').toLowerCase().includes((memberSearchQuery || '').toLowerCase())).length === 0 ? (
-                      <div className="w-full py-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                        <p className="text-[10px] text-slate-400 font-black">لا يوجد نتائج للبحث</p>
-                      </div>
-                    ) : syncedUsers.filter((u: any) => (u?.name || '').toLowerCase().includes((memberSearchQuery || '').toLowerCase())).map((user: any) => {
-                      const isSelected = selectedGroupMembers.includes(user.id);
-                      return (
-                        <button 
-                          key={user.id}
-                          onClick={() => {
-                            if (isSelected) setSelectedGroupMembers(p => p.filter(id => id !== user.id));
-                            else setSelectedGroupMembers(p => [...p, user.id]);
-                          }}
-                          className="flex flex-col items-center gap-2 shrink-0 group"
-                        >
-                          <div className="relative">
-                            <img 
-                              src={user.avatar || `https://ui-avatars.com/api/?name=${user.name}`} 
-                              className={`w-16 h-16 rounded-[1.5rem] border-2 transition-all shadow-sm object-cover ${isSelected ? 'border-blue-600 scale-105' : 'border-white group-hover:border-slate-100'}`} 
-                              alt="" 
-                            />
-                            {isSelected && (
-                              <div className="absolute -top-1 -right-1 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white">
-                                <Plus size={14} className="rotate-45" />
-                              </div>
-                            )}
-                          </div>
-                          <p className={`text-[10px] font-black truncate w-20 text-center ${isSelected ? 'text-blue-600' : 'text-slate-600'}`}>{user.name}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-4 shrink-0">
-                <button 
-                  onClick={() => setShowCreateGroup(false)}
-                  className="flex-1 py-4 text-slate-500 font-black text-xs hover:bg-slate-100 rounded-2xl transition-all"
-                >
-                  إلغاء الأمر
-                </button>
-                <button 
-                  onClick={createGroup}
-                  disabled={isCreatingGroup || !groupName.trim()}
-                  className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black text-xs shadow-xl shadow-blue-200 dark:shadow-none hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
-                >
-                  {isCreatingGroup ? <Loader2 size={18} className="animate-spin" /> : 'تأكيد وإنشاء المجموعة'}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Offer Modal */}
       <AnimatePresence>

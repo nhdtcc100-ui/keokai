@@ -5,6 +5,7 @@ import { Job } from "../../../types";
 import { JobPostForm } from "./JobPostForm";
 import { supabase } from "../../../lib/supabase";
 import { useAppContext } from "../../../contexts/AppContext";
+import { getJobCategory, encodeCategoryInDescription } from "../../../lib/utils/jobCategoryUtils";
 
 interface EditJobModalProps {
   job: Job | null;
@@ -23,6 +24,7 @@ export const EditJobModal = ({ job, onClose, onSuccess }: EditJobModalProps) => 
     location: job?.location || "",
     salary: job?.salary || "",
     jobType: job?.jobType || "full-time",
+    category: job ? getJobCategory(job) : "أخرى",
     working_hours: (job as any)?.working_hours || "",
     imageUrl: (job as any)?.imageUrl || (job as any)?.image_url || "",
     is_active: job?.is_active !== false,
@@ -35,12 +37,17 @@ export const EditJobModal = ({ job, onClose, onSuccess }: EditJobModalProps) => 
       addToast("يرجى تعبئة العنوان واسم الشركة", "error");
       return;
     }
+    if (!formData.category || !formData.category.trim()) {
+      addToast("يرجى اختيار قسم الوظيفة (حقل إجباري)", "error");
+      return;
+    }
     setIsPosting(true);
     try {
+      const descriptionWithCat = encodeCategoryInDescription(formData.description.trim(), formData.category.trim());
       const payload: Record<string, any> = {
         title: formData.title.trim(),
         company: formData.company.trim(),
-        description: formData.description.trim(),
+        description: descriptionWithCat,
         requirements: formData.requirements.trim(),
         location: formData.location.trim(),
         salary: formData.salary.trim(),

@@ -6,15 +6,38 @@ export function NavbarItem({ icon, label, active, onClick, badge }: any) {
   return (
     <div
       onClick={onClick}
-      className={`flex flex-col items-center justify-center px-4 cursor-pointer relative h-full transition-all group text-slate-900 dark:text-slate-400 hover:text-blue-600`}
+      className={`relative flex flex-col items-center justify-center px-3.5 cursor-pointer h-full transition-all group select-none`}
     >
-      <div className="relative group-hover:scale-110 transition-transform">
-        {icon}
+      {/* Active background pill */}
+      {active && (
+        <div
+          className="absolute inset-x-1 inset-y-2 rounded-xl pointer-events-none"
+          style={{
+            background: 'rgba(59,130,246,0.08)',
+            border: '1px solid rgba(59,130,246,0.12)',
+          }}
+        />
+      )}
+
+      {/* Active bottom accent bar */}
+      {active && (
+        <div
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-t-full"
+          style={{ background: 'linear-gradient(90deg, #3b82f6, #6366f1)' }}
+        />
+      )}
+
+      <div className={`relative transition-all duration-200 ${active ? 'scale-110' : 'group-hover:scale-105 opacity-60 group-hover:opacity-100'}`}>
+        <span className={active ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}>
+          {icon}
+        </span>
         {badge > 0 && (
-          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-bounce pointer-events-none z-20" />
+          <span className="absolute -top-1.5 -right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-900 animate-bounce pointer-events-none z-20" />
         )}
       </div>
-      <span className="text-[10px] mt-1 hidden lg:block font-bold whitespace-nowrap">{label}</span>
+      <span className={`text-[9px] mt-0.5 hidden lg:block font-black whitespace-nowrap tracking-tight transition-colors ${
+        active ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'
+      }`}>{label}</span>
     </div>
   );
 }

@@ -21,6 +21,9 @@ export default defineConfig(({mode}) => {
       emptyOutDir: true,
     },
     server: {
+      fs: {
+        strict: false,
+      },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
@@ -28,6 +31,7 @@ export default defineConfig(({mode}) => {
         '/tg-proxy': {
           target: 'https://t.me',
           changeOrigin: true,
+          followRedirects: true,
           rewrite: (path) => path.replace(/^\/tg-proxy/, ''),
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

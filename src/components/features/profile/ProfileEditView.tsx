@@ -20,7 +20,11 @@ import {
   Send,
   Lock,
   Sparkles,
-  X
+  X,
+  Camera,
+  Image as ImageIcon,
+  Wrench,
+  Building2
 } from 'lucide-react';
 import { GlassCard } from '../../ui';
 import { validateField } from '../../../lib/security/inputValidator';
@@ -35,6 +39,8 @@ interface ProfileEditViewProps {
   setActiveTab: (tab: any) => void;
   saveStatus?: 'idle' | 'saving' | 'saved' | 'error';
   handleCVUpload?: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+  handleAvatarChange?: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+  handleCoverChange?: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleSave?: () => Promise<void>;
   onScrollToTop?: () => void;
   pendingCVName?: string | null;
@@ -52,6 +58,8 @@ export const ProfileEditView: React.FC<ProfileEditViewProps> = ({
   setActiveTab,
   saveStatus = 'idle',
   handleCVUpload,
+  handleAvatarChange,
+  handleCoverChange,
   handleSave,
   onScrollToTop,
   pendingCVName,
@@ -70,7 +78,7 @@ export const ProfileEditView: React.FC<ProfileEditViewProps> = ({
   const [pendingRoleRequest, setPendingRoleRequest] = useState<any | null>(null);
   const [loadingRoleCheck, setLoadingRoleCheck] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
-  const [targetRoleToRequest, setTargetRoleToRequest] = useState<'seeker' | 'employer' | null>(null);
+  const [targetRoleToRequest, setTargetRoleToRequest] = useState<'seeker' | 'employer' | 'freelancer' | null>(null);
   const [roleReason, setRoleReason] = useState('');
   const [isSendingRoleRequest, setIsSendingRoleRequest] = useState(false);
 
@@ -134,7 +142,7 @@ export const ProfileEditView: React.FC<ProfileEditViewProps> = ({
     };
   }, [effectiveUserId, currentRole]);
 
-  const handleRoleCardClick = (role: 'seeker' | 'employer') => {
+  const handleRoleCardClick = (role: 'seeker' | 'employer' | 'freelancer') => {
     if (role === currentRole) return;
     if (isPendingRoleChange) {
       addToast('لديك طلب قيد المراجعة، يرجى انتظار رد الإدارة أولاً.', 'error');
@@ -184,7 +192,11 @@ export const ProfileEditView: React.FC<ProfileEditViewProps> = ({
       }
 
       console.log("✅ [ProfileEditView] تم إرسال الطلب بنجاح تام!", data);
-      const targetLabel = targetRoleToRequest === 'employer' ? 'صاحب عمل / شركة 🏢' : 'باحث عن عمل 👤';
+      const targetLabel = targetRoleToRequest === 'employer' 
+        ? 'صاحب عمل / شركة 🏢' 
+        : targetRoleToRequest === 'freelancer'
+          ? 'عمل حر / كشفي ⚡'
+          : 'باحث عن عمل 👤';
       addToast(`✅ تم إرسال طلب التحويل إلى "${targetLabel}" للإدارة بنجاح!`, 'success');
       setShowRoleModal(false);
       setPendingRoleRequest({
@@ -232,6 +244,63 @@ export const ProfileEditView: React.FC<ProfileEditViewProps> = ({
       dir="rtl"
     >
 
+      {/* ─── حالة التوفر للعمل (Available for Work) — حصرياً في الملف الشخصي ─── */}
+      {currentRole !== 'employer' && (
+        <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border-2 border-emerald-500/30 rounded-[2.5rem] p-6 sm:p-7 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-5">
+          <div className="flex items-center gap-4 text-right">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${
+              formData.open_to === 'work' || formData.is_available
+                ? 'bg-emerald-500 text-white shadow-emerald-500/30'
+                : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+            }`}>
+              <Briefcase size={26} />
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-[10px] font-black uppercase tracking-widest mb-1">
+                خاصية الملف الشخصي
+              </div>
+              <h3 className="text-base font-black text-slate-900 dark:text-white">
+                حالة التوفر للعمل (متاح للعمل 🟢 / غير متاح ⚪)
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                تظهر هذه الشارة في ملفك الشخصي فقط لتنبيه أصحاب العمل بجاهزيتك للتوظيف والفرص
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 p-1.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                handleFieldChange('open_to', 'work');
+                handleFieldChange('is_available', true);
+              }}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                formData.open_to === 'work' || formData.is_available
+                  ? 'bg-emerald-500 text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              <span>🟢 متاح للعمل الآن</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                handleFieldChange('open_to', 'none');
+                handleFieldChange('is_available', false);
+              }}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                formData.open_to === 'none' && !formData.is_available
+                  ? 'bg-slate-500 text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              <span>⚪ غير متاح للعمل</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ─── Section 0: نوع الحساب والصلاحيات ───────────────── */}
       <div className="bg-gradient-to-br from-slate-50 to-blue-50/40 dark:from-slate-800/60 dark:to-blue-950/20 rounded-[2.5rem] border border-blue-100/60 dark:border-blue-900/40 p-6 md:p-8 space-y-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200/60 dark:border-slate-700/60">
@@ -241,7 +310,7 @@ export const ProfileEditView: React.FC<ProfileEditViewProps> = ({
               نوع الحساب والصلاحيات
             </div>
             <h3 className="text-base font-black text-slate-800 dark:text-white">
-              تحديد فئة الحساب (باحث عن عمل / صاحب عمل)
+              تحديد فئة الحساب (باحث عن عمل / صاحب عمل / عمل حر)
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-bold mt-0.5">
               تغيير نوع الحساب يتطلب مراجعة وموافقة من إدارة المنصة لضمان أمان الصلاحيات
@@ -258,8 +327,8 @@ export const ProfileEditView: React.FC<ProfileEditViewProps> = ({
           ) : null}
         </div>
 
-        {/* خيارا نوع الحساب */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* خيارات نوع الحساب */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* باحث عن عمل */}
           <div
             onClick={() => handleRoleCardClick('seeker')}
@@ -290,7 +359,7 @@ export const ProfileEditView: React.FC<ProfileEditViewProps> = ({
             <div>
               <h4 className="font-black text-sm text-slate-800 dark:text-white mb-1">👤 باحث عن عمل</h4>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold leading-relaxed">
-                تصفح الفرص الوظيفية والتقديم بالسيرة الذاتية وبناء الملف المهني.
+                تصفح الفرص والتقديم بالـ CV وبناء الملف المهني.
               </p>
             </div>
           </div>
@@ -325,7 +394,42 @@ export const ProfileEditView: React.FC<ProfileEditViewProps> = ({
             <div>
               <h4 className="font-black text-sm text-slate-800 dark:text-white mb-1">🏢 صاحب عمل / شركة</h4>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold leading-relaxed">
-                نشر الوظائف الشاغرة، إدارة المتقدمين والتوظيف، وبناء الملف المؤسسي.
+                نشر الوظائف الشاغرة واستقطاب وإدارة المتقدمين.
+              </p>
+            </div>
+          </div>
+
+          {/* عمل حر / كشفي */}
+          <div
+            onClick={() => handleRoleCardClick('freelancer')}
+            className={`p-5 rounded-2xl border-2 transition-all relative overflow-hidden flex flex-col justify-between cursor-pointer ${
+              currentRole === 'freelancer'
+                ? 'border-amber-600 bg-amber-50/80 dark:bg-amber-950/50 shadow-md ring-2 ring-amber-500/20'
+                : 'border-slate-200 dark:border-slate-700/80 bg-white/80 dark:bg-slate-800/80 hover:border-amber-300 dark:hover:border-amber-700'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-md ${
+                currentRole === 'freelancer'
+                  ? 'bg-amber-600 text-white shadow-amber-500/30'
+                  : 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'
+              }`}>
+                <Wrench size={22} />
+              </div>
+              {currentRole === 'freelancer' ? (
+                <span className="px-3 py-1 bg-amber-600 text-white text-[10px] font-black rounded-full shadow-sm flex items-center gap-1">
+                  <CheckCircle2 size={12} /> حسابك الحالي
+                </span>
+              ) : (
+                <span className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black rounded-full flex items-center gap-1">
+                  <ArrowLeftRight size={11} /> اضغط للطلب
+                </span>
+              )}
+            </div>
+            <div>
+              <h4 className="font-black text-sm text-slate-800 dark:text-white mb-1">⚡ عمل حر / كشفي</h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold leading-relaxed">
+                خدمات ميدانية سريعة وتواصل فوري بالرقم والموقع.
               </p>
             </div>
           </div>
@@ -447,6 +551,73 @@ export const ProfileEditView: React.FC<ProfileEditViewProps> = ({
           </div>
         </div>
 
+        {/* ─── Profile Photos & Visual Identity ─── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+          {/* Avatar Upload Card */}
+          <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="relative w-14 h-14 rounded-2xl overflow-hidden border-2 border-blue-500 shadow-md shrink-0 bg-white dark:bg-slate-700">
+                <img
+                  src={formData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name || 'User')}&background=random`}
+                  alt="Avatar Preview"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="min-w-0">
+                <h5 className="text-xs font-black text-slate-800 dark:text-white">الصورة الشخصية</h5>
+                <p className="text-[9px] font-bold text-slate-400">تُحفظ وتُستبدل مباشرة وتلقائياً</p>
+              </div>
+            </div>
+
+            {handleAvatarChange && (
+              <label className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black cursor-pointer shadow-md shadow-blue-500/20 active:scale-95 transition-all flex items-center gap-1.5 shrink-0">
+                <Camera size={13} />
+                <span>تغيير الصورة</span>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
+                  onChange={handleAvatarChange}
+                />
+              </label>
+            )}
+          </div>
+
+          {/* Cover Photo Upload Card */}
+          <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-md shrink-0 bg-gradient-to-r from-blue-600 to-indigo-700 flex items-center justify-center">
+                {formData.coverUrl || (formData as any).cover_url ? (
+                  <img
+                    src={formData.coverUrl || (formData as any).cover_url}
+                    alt="Cover Preview"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <ImageIcon size={20} className="text-white/70" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <h5 className="text-xs font-black text-slate-800 dark:text-white">صورة الغلاف (الخلفية)</h5>
+                <p className="text-[9px] font-bold text-slate-400">تُحفظ وتُستبدل مباشرة وتلقائياً</p>
+              </div>
+            </div>
+
+            {handleCoverChange && (
+              <label className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95 transition-all flex items-center gap-1.5 shrink-0">
+                <ImageIcon size={13} />
+                <span>تغيير الغلاف</span>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
+                  onChange={handleCoverChange}
+                />
+              </label>
+            )}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div className="md:col-span-2">
             <label htmlFor="edit-name" className={labelClass}>الاسم الكامل</label>
@@ -538,16 +709,16 @@ export const ProfileEditView: React.FC<ProfileEditViewProps> = ({
             <label htmlFor="edit-title" className={labelClass}>المسمى الوظيفي / التخصص</label>
             <input
               id="edit-title"
-              name="title"
-              className={`${inputClass} ${fieldErrors.title ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : ''}`}
-              value={formData.title || ''}
-              onChange={e => handleSecureFieldChange('title', 'المسمى الوظيفي', e.target.value)}
+              name="industry"
+              className={`${inputClass} ${fieldErrors.industry ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : ''}`}
+              value={formData.industry || formData.title || ''}
+              onChange={e => handleSecureFieldChange('industry', 'المسمى الوظيفي', e.target.value)}
               placeholder="مثال: مطور ويب — React & Node.js"
             />
-            {fieldErrors.title && (
+            {fieldErrors.industry && (
               <div className="mt-1.5 flex items-start gap-1.5 text-red-600 text-[11px] font-semibold">
                 <AlertCircle size={13} className="shrink-0 mt-0.5" />
-                <span>{fieldErrors.title}</span>
+                <span>{fieldErrors.industry}</span>
               </div>
             )}
           </div>
@@ -730,7 +901,7 @@ export const ProfileEditView: React.FC<ProfileEditViewProps> = ({
           <input
             type="file"
             onChange={handleCVUpload}
-            accept=".pdf,.doc,.docx"
+            accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.pdf,.doc,.docx"
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
           />
           <div className="border-2 border-dashed border-slate-200 rounded-3xl p-8 flex flex-col items-center justify-center gap-3 group-hover:border-blue-400 group-hover:bg-blue-50/30 transition-all">
@@ -738,7 +909,7 @@ export const ProfileEditView: React.FC<ProfileEditViewProps> = ({
               <CloudUpload className="text-blue-500" size={24} />
             </div>
             <p className="text-xs font-black text-slate-700">اضغط لرفع ملف السيرة الذاتية</p>
-            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">PDF, DOCX (Max 5MB)</p>
+            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">PDF, DOCX (Max 20MB)</p>
           </div>
         </div>
 
