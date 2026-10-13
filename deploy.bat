@@ -49,6 +49,10 @@ if %errorlevel% neq 0 (
 echo.
 echo [3/3] Pushing to GitHub (origin main)...
 git push -u origin main
+if %errorlevel% neq 0 (
+    echo Normal push rejected, pushing with --force...
+    git push -u origin main --force
+)
 
 if %errorlevel% equ 0 (
     echo.
