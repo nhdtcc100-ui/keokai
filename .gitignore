@@ -26,4 +26,6 @@ npm_backup
 *.cjs
 tsc_errors.txt
 extracted_*.json
+tests/load/reports/
+*.json.bak
 scratch/
